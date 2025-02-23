@@ -89,7 +89,7 @@ export default function Start() {
       />
 
       {/* Cursor Composer Section */}
-      <CardContainer className="mb-12">
+      <CardContainer className="mb-12 w-full">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -119,7 +119,7 @@ export default function Start() {
       </div>
 
       {/* Manual Installation Section */}
-      <CardContainer delay={0.2}>
+      <CardContainer className="w-full" delay={0.2}>
         <Card className="mb-8">
           <CardHeader>
             <CardTitle>Start with a Human</CardTitle>
