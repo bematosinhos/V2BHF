@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![SBC Starter Kit](https://raw.githubusercontent.com/m4n3z40/sbc-cursor-starter-kit/main/public/vite.svg)
+![SBC Starter Kit](https://raw.githubusercontent.com/m4n3z40/sbc-cursor-starter-kit/master/public/vite.svg)
 
 The first web app boilerplate built specifically for AI-first editors like Cursor.
 

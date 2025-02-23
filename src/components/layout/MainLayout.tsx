@@ -10,7 +10,7 @@ import {
   navigationMenuTriggerStyle,
 } from '@/components/ui/navigation-menu'
 import { cn } from '@/lib/utils'
-import { Menu, Home, Info, Github } from 'lucide-react'
+import { Menu, Home, Info, Github, PlayCircle } from 'lucide-react'
 import { useState } from 'react'
 
 const mainNavItems = [
@@ -18,6 +18,11 @@ const mainNavItems = [
     title: 'Home',
     href: '/',
     icon: Home,
+  },
+  {
+    title: 'Start Using',
+    href: '/start',
+    icon: PlayCircle,
   },
   {
     title: 'About',
