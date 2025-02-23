@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Menu, Home, Info, Github, PlayCircle } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -11,6 +10,7 @@ import {
   NavigationMenuList,
   navigationMenuTriggerStyle,
 } from '@/components/ui/navigation-menu'
+import { useMainLayoutState } from '@/store'
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-mobile'
 
@@ -33,7 +33,7 @@ const mainNavItems = [
 ]
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const { mainSidebarOpen, setMainSidebarOpen } = useMainLayoutState()
   const location = useLocation()
   const isMobile = useIsMobile()
 
@@ -44,7 +44,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         <div className="container mx-auto">
           <div className="flex h-14 items-center justify-between px-4 sm:h-16">
             <div className="flex items-center gap-2 sm:gap-4">
-              <Sheet open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
+              <Sheet open={mainSidebarOpen} onOpenChange={setMainSidebarOpen}>
                 <SheetTrigger asChild>
                   <Button variant="ghost" size={isMobile ? 'sm' : 'icon'} className="md:hidden">
                     <Menu className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -65,7 +65,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                           <Link
                             key={item.href}
                             to={item.href}
-                            onClick={() => setIsSidebarOpen(false)}
+                            onClick={() => setMainSidebarOpen(false)}
                             className={cn(
                               'flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors sm:px-3 sm:py-2',
                               location.pathname === item.href
