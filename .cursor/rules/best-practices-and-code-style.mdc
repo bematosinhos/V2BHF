@@ -2,25 +2,33 @@
 description: Rules for best practices to take into account when coding
 globs: *.{ts,tsx,js,jsx,html,css}
 ---
-### Key Principles
+### Key Programming Style Principles
+- Always respect the conventions inside [.editorconfig](mdc:.editorconfig) and [.prettierrc](mdc:.prettierrc)
+- Always reorder imports by placing the Node core packages first, then the npm packages, and finally the project modules, always using `@/directory` and placing React components before other modules. Example:
+    ```typescript
+    import path from 'node:path' // node core package
+    import { useState } from 'react' // npm package
+    import { motion } from 'framer-motion' // npm package
+
+    import { Button } from '@/components/ui/button' // project module
+    import { useAppState } from '@/store' // project module
+    import reactLogo from '@/assets/react.svg' // project module
+    import viteLogo from '/vite.svg' // project module
+
+    ```
 - Keep files small. Try to never have more than 150 lines per file. Break it into smaller files.
-- Follow the user’s requirements carefully & to the letter.
 - Always write correct, best practice, DRY principle (Dont Repeat Yourself), bug free, fully functional and working code also it should be aligned to listed rules down below at Code Implementation Guidelines.
-- Write concise, technical TypeScript code with accurate examples.
 - Use functional and declarative programming patterns; avoid classes.
 - Prefer iteration and modularization over code duplication.
 - Use descriptive variable and function/const names with auxiliary verbs (e.g., isLoading, hasError). Also, event functions should be named with a “handle” prefix, like “handleClick” for onClick and “handleKeyDown” for onKeyDown.
-- Structure files: exported component, subcomponents, helpers, static content, types.
-- Focus on easy and readability code, over being performant.
-- Fully implement all requested functionality.
-- Ensure code is complete! Verify thoroughly finalised.
+- Always prefer on maintainble and readable code, over being performant.
 - Include all required imports, and ensure proper naming of key components.
-- Be concise Minimize any other prose.
-- If you think there might not be a correct answer, you say so.
-- If you do not know the answer, say so, instead of guessing.
+- Use early returns whenever possible to make the code more readable.
+- Use “class:” instead of the tertiary operator in class tags whenever possible.
 
 ### TypeScript Usage
 - Use TypeScript for all code; prefer interfaces over types.
+- Write concise, correct, best practice, DRY (Dont Repeat Yourself), technical TypeScript code with accurate examples.
 - Avoid enums; use maps instead.
 - Use functional components with TypeScript interfaces.
 
@@ -87,24 +95,10 @@ globs: *.{ts,tsx,js,jsx,html,css}
 - Use dynamic loading for non-critical components, even whole routes using the dynamic `import()` so vite splits the output bundles based on pages.
 - Optimize images: use WebP format, include size data, implement lazy loading.
 
-### Key Conventions
-- Always respect the conventions inside [.editorconfig](mdc:.editorconfig) and [.prettierrc](mdc:.prettierrc)
-- Always order imports by placing the Node core packages first, then the packages installed via npm, and finally the project files, always using `@/directory` and placing React components before other modules. Example:
-    ```typescript
-    import path from 'node:path'
-    import { useState } from 'react'
-    import { motion } from 'framer-motion'
-    import { Button } from '@/components/ui/button'
-    import { useAppState } from '@/store'
-    import reactLogo from '@/assets/react.svg'
-    import viteLogo from '/vite.svg'
-
-    ```
+### Web Interfaces Programming Conventions
 - Use 'nuqs' package for URL search parameter state management.
 - Use 'zod' package for any user or api input validation.
 - Optimize Web Vitals (LCP, CLS, FID).
 - Use only for Web API access in small components.
-- Use early returns whenever possible to make the code more readable.
-- Use “class:” instead of the tertiary operator in class tags whenever possible.
 - Implement accessibility features on elements. For example, a tag should have a tabindex=“0”, aria-label, on:click, and on:keydown, and similar attributes.
 
