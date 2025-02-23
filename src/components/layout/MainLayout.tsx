@@ -1,7 +1,7 @@
 import { Menu, Home, Info, Github, PlayCircle } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Separator } from '@/components/ui/separator'
 import {
   NavigationMenu,
@@ -53,10 +53,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 </SheetTrigger>
                 <SheetContent side="left" className="w-[80vw] max-w-[280px] p-0">
                   <div className="flex flex-col gap-3 p-4 sm:p-6">
-                    <div className="flex items-center gap-2">
+                    <SheetTitle className="flex items-center gap-2">
                       <img src="/vite.svg" alt="Logo" className="h-5 w-5 sm:h-6 sm:w-6" />
-                      <h2 className="text-sm font-semibold sm:text-base">SBC Starter Kit</h2>
-                    </div>
+                      <span className="text-sm font-semibold sm:text-base">SBC Starter Kit</span>
+                    </SheetTitle>
                     <Separator />
                     <nav className="flex flex-col gap-1 sm:gap-2">
                       {mainNavItems.map((item) => {
@@ -96,18 +96,17 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 <NavigationMenuList className="gap-1 lg:gap-2">
                   {mainNavItems.map((item) => (
                     <NavigationMenuItem key={item.href}>
-                      <Link to={item.href}>
-                        <NavigationMenuLink
-                          className={cn(
-                            navigationMenuTriggerStyle(),
-                            'px-3 lg:px-4',
-                            location.pathname === item.href &&
-                              'bg-secondary text-secondary-foreground',
-                          )}
-                        >
-                          {item.title}
-                        </NavigationMenuLink>
-                      </Link>
+                      <NavigationMenuLink
+                        className={cn(
+                          navigationMenuTriggerStyle(),
+                          'px-3 lg:px-4',
+                          location.pathname === item.href &&
+                            'bg-secondary text-secondary-foreground',
+                        )}
+                        asChild
+                      >
+                        <Link to={item.href}>{item.title}</Link>
+                      </NavigationMenuLink>
                     </NavigationMenuItem>
                   ))}
                 </NavigationMenuList>
@@ -118,7 +117,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             <div className="flex items-center">
               <Button
                 variant="ghost"
-                size={isMobile ? 'sm' : 'icon'}
+                size={!isMobile ? 'sm' : 'icon'}
                 asChild
                 className="px-2 sm:px-3"
               >
