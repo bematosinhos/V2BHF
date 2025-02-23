@@ -1,9 +1,9 @@
 import { motion } from 'framer-motion'
+import { Copy, Wand2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Copy, Wand2 } from 'lucide-react'
 
 const cursorPrompt = `Clone the SBC Starter Kit repository from https://github.com/m4n3z40/sbc-cursor-starter-kit, install all dependencies and start the development server. Then show me what's available in the project.`
 
@@ -16,7 +16,7 @@ const installSteps = [
   },
   {
     title: 'Install Dependencies',
-    command: 'npm install\n# or\npnpm install',
+    command: 'npm install --legacy-peer-deps\n# or\npnpm install --legacy-peer-deps',
     description: 'Install all required dependencies using your preferred package manager',
   },
   {
@@ -83,17 +83,17 @@ export default function Start() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center bg-gradient-to-br from-purple-600 via-blue-500 to-teal-400 p-8 text-white">
+    <div className="flex min-h-screen flex-col items-center bg-gradient-to-br from-purple-600 via-blue-500 to-teal-400 p-4 text-white sm:p-8">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-4xl"
       >
-        <div className="mb-12 text-center">
-          <h1 className="mb-4 bg-gradient-to-r from-white to-blue-200 bg-clip-text text-4xl font-bold text-transparent">
+        <div className="mb-8 text-center sm:mb-12">
+          <h1 className="mb-3 bg-gradient-to-r from-white to-blue-200 bg-clip-text text-3xl font-bold text-transparent sm:mb-4 sm:text-4xl">
             Start Using SBC Starter Kit
           </h1>
-          <p className="text-lg text-white/90">
+          <p className="text-base text-white/90 sm:text-lg">
             Choose how you want to get started with your new project
           </p>
         </div>
@@ -116,8 +116,8 @@ export default function Start() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="relative rounded-lg border border-white/10 bg-white/5 p-4">
-                <div className="absolute top-4 right-4">
+              <div className="relative rounded-lg border border-white/10 bg-white/5 p-6">
+                <div className="absolute top-10 right-8">
                   <Button
                     variant="ghost"
                     size="icon"
@@ -160,11 +160,11 @@ export default function Start() {
             </CardHeader>
           </Card>
 
-          <Tabs defaultValue="prerequisites" className="mb-12">
-            <TabsList className="grid w-full grid-cols-3">
+          <Tabs defaultValue="prerequisites" className="mb-8 sm:mb-12">
+            <TabsList className="grid w-full grid-cols-3 text-xs sm:text-sm">
               <TabsTrigger value="prerequisites">Prerequisites</TabsTrigger>
               <TabsTrigger value="installation">Installation</TabsTrigger>
-              <TabsTrigger value="scripts">Available Scripts</TabsTrigger>
+              <TabsTrigger value="scripts">Scripts</TabsTrigger>
             </TabsList>
 
             <TabsContent value="prerequisites">
@@ -213,7 +213,7 @@ export default function Start() {
                       </CardHeader>
                       <CardContent>
                         <div className="relative rounded-lg border border-white/10 bg-white/5 p-4">
-                          <div className="absolute top-4 right-4">
+                          <div className="absolute top-8 right-6">
                             <Button
                               variant="ghost"
                               size="icon"
@@ -223,7 +223,7 @@ export default function Start() {
                               <Copy className="h-4 w-4" />
                             </Button>
                           </div>
-                          <pre className="mt-2 rounded bg-zinc-950 p-2">
+                          <pre className="mt-2 rounded bg-zinc-950 p-2 whitespace-pre-wrap">
                             <code>{step.command}</code>
                           </pre>
                         </div>
@@ -262,7 +262,7 @@ export default function Start() {
                           </Button>
                         </div>
                         <p className="text-sm text-white/70">{script.description}</p>
-                        <pre className="mt-2 rounded bg-zinc-950 p-2">
+                        <pre className="mt-2 rounded bg-zinc-950 p-2 whitespace-pre-wrap">
                           <code className="text-sm">{script.command}</code>
                         </pre>
                       </motion.div>

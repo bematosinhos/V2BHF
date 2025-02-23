@@ -69,9 +69,9 @@ cd sbc-cursor-starter-kit
 2. Install dependencies
 
 ```bash
-npm install
+npm install --legacy-peer-deps
 # or
-pnpm install
+pnpm install --legacy-peer-deps
 ```
 
 3. Start development server

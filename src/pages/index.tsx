@@ -8,11 +8,11 @@ export default function Index() {
   const { count, increment, decrement } = useAppState()
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-purple-600 via-blue-500 to-teal-400 p-8 text-white">
-      <div className="mb-12 flex gap-8">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-purple-600 via-blue-500 to-teal-400 p-4 text-white sm:p-8">
+      <div className="mb-8 flex gap-4 sm:mb-12 sm:gap-8">
         <motion.img
           src={viteLogo}
-          className="h-32 drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]"
+          className="h-20 drop-shadow-[0_0_15px_rgba(255,255,255,0.5)] sm:h-32"
           animate={{
             rotate: 360,
             scale: 1.1,
@@ -37,7 +37,7 @@ export default function Index() {
         />
         <motion.img
           src={reactLogo}
-          className="h-32 drop-shadow-[0_0_15px_rgba(0,216,255,0.5)]"
+          className="h-20 drop-shadow-[0_0_15px_rgba(0,216,255,0.5)] sm:h-32"
           animate={{
             rotateY: 360,
           }}
@@ -55,18 +55,18 @@ export default function Index() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl bg-white/10 p-8 shadow-2xl backdrop-blur-lg"
+        className="w-full max-w-sm rounded-2xl bg-white/10 p-4 shadow-2xl backdrop-blur-lg sm:max-w-md sm:p-8"
       >
-        <h1 className="mb-6 bg-gradient-to-r from-white to-blue-200 bg-clip-text text-center text-4xl font-bold text-transparent">
+        <h1 className="mb-4 bg-gradient-to-r from-white to-blue-200 bg-clip-text text-center text-3xl font-bold text-transparent sm:mb-6 sm:text-4xl">
           SBC Starter Kit
         </h1>
-        <p className="mb-8 text-center">
+        <p className="mb-6 text-center text-sm sm:mb-8 sm:text-base">
           The first web app boilerplate built for AI first editors like Cursor.
         </p>
 
-        <div className="mb-8 text-center">
+        <div className="mb-6 text-center sm:mb-8">
           <motion.p
-            className="mb-2 text-6xl font-bold"
+            className="mb-2 text-4xl font-bold sm:text-6xl"
             key={count}
             initial={{ scale: 0.5 }}
             animate={{ scale: 1 }}
@@ -78,19 +78,19 @@ export default function Index() {
           >
             {count}
           </motion.p>
-          <p className="text-white/80">Global Counter</p>
+          <p className="text-sm text-white/80">Global Counter</p>
         </div>
 
-        <div className="flex justify-center gap-4">
+        <div className="flex flex-col justify-center gap-3 sm:flex-row sm:gap-4">
           <Button
             onClick={increment}
-            className="transform bg-white/20 shadow-lg transition-all duration-300 hover:scale-105 hover:bg-white/30 hover:shadow-xl active:scale-95"
+            className="w-full transform bg-white/20 shadow-lg transition-all duration-300 hover:scale-105 hover:bg-white/30 hover:shadow-xl active:scale-95 sm:w-auto"
           >
             Increment
           </Button>
           <Button
             onClick={decrement}
-            className="transform bg-white/20 shadow-lg transition-all duration-300 hover:scale-105 hover:bg-white/30 hover:shadow-xl active:scale-95"
+            className="w-full transform bg-white/20 shadow-lg transition-all duration-300 hover:scale-105 hover:bg-white/30 hover:shadow-xl active:scale-95 sm:w-auto"
           >
             Decrement
           </Button>
