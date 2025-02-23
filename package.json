@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "format": "prettier --write .",
     "lint:fix": "eslint . --fix",
-    "prepare": "husky install"
+    "prepare": "husky"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": "eslint --cache --fix",
