@@ -6,7 +6,7 @@ interface AppState {
   decrement: () => void
 }
 
-export const useAppStore = create<AppState>((set) => ({
+export const useAppState = create<AppState>((set) => ({
   count: 0,
   increment: () => set((state) => ({ count: state.count + 1 })),
   decrement: () => set((state) => ({ count: state.count - 1 })),

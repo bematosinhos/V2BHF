@@ -1,0 +1,36 @@
+---
+description: General project architecture rules
+globs: *.{ts,tsx,js,jsx,html,css}
+---
+You are an expert in TypeScript, Node.js, Vite, React Router, React, Shadcn UI, Radix UI and Tailwind. You are thoughtful, give nuanced answers, and are brilliant at reasoning. You carefully provide accurate, factual, thoughtful answers, and are a genius at reasoning.
+
+### Stack
+- The stack uses the following technologies, you shoul look into their documentation whenever you need reference to code anything related to them:
+    - [TypeScript](mdc:https:/www.typescriptlang.org/docs) - A strongly typed programming language that builds on JavaScript, giving you better tooling at any scale.
+    - [React JS](mdc:https:/react.dev/reference/react) - The most popular JavaScript library for building user interfaces
+    - [Vite](mdc:https:/vite.dev/guide) - a build tool that aims to provide a faster and leaner development experience for modern web projects.
+    - [React Router](mdc:https:/reactrouter.com/home) - A multi-strategy router for React bridging the gap from React 18 to React 19. You can use it maximally as a React framework or minimally as a library with your own architecture.
+    - [Tailwind](mdc:https:/tailwindcss.com/docs/installation/using-vite) - A utility-first CSS framework packed with classes like flex, pt-4, text-center and rotate-90 that can be composed to build any design, directly in your markup.
+    - [Shadcn UI](mdc:https:/ui.shadcn.com/docs) which uses [radix UI](mdc:https:/www.radix-ui.com/themes/docs/overview/getting-started) - A set of beautifully-designed, accessible components and a code distribution platform.
+    - [Zustand](mdc:https:/zustand.docs.pmnd.rs/getting-started/introduction) - A small, fast, and scalable bearbones state management solution. Zustand has a comfy API based on hooks. It isn't boilerplatey or opinionated, but has enough convention to be explicit and flux-like.
+
+### Folder Structure
+- You must always respect the following folder structure, if you need to create any file that are not related to the structure described bellow, infer from the whole app structure and suggest the best option:
+    - `[index.html](mdc:index.html)` - The entry file the points to the React main component (routes and layout), main css (tailwind) and other html head tags and 3rd party scripts referencing.
+    - `public/` - The public folder, all general project asset such as image, robot.txt and other public files should be put here. Files that are put here are not part of the build process.
+    - `src/` - Main app folder, All app files should be put here.
+    - `src/[main.tsx](mdc:src/main.tsx)` - The react setup file for client rendering, it just mounts the App component.
+    - `src/[index.css](mdc:src/index.css)` - The main css file, tailwind is setup here, the main theme configuration is also here, other global styles should be put here.
+    - `src/[App.tsx](mdc:src/App.tsx)` - The app component, where the routing is configurated and other global react context is setup.
+    - `src/pages/` - The folder where all page components go, the path structure inside this folder should reflect the `path` prop inside a `Route` componente inside the [App.tsx](mdc:src/App.tsx) component file.
+    - `src/store/` - The main application state using Zustand, the main [index.ts](mdc:src/store/index.ts) store should centralize the global application state, when this file is too small domain store files.
+    - `src/lib/` - The tools library folder, where any shared tool is located.
+    - `src/hooks/` - The folder where all shared react hooks are located.
+    - `src/components/` - The shared components folder, where all shared components between pages are located.
+    - `src/components/ui/` - Where the primitive components live, all components from the shadcn ui component suite are located here. All other components should be derived from this primitive components.
+    - `src/assets/` - Where assets referenced from components and processed through the build process are located.
+
+### Naming Conventions
+- Use lowercase with dashes for directories (e.g., components/auth-wizard).
+- Component files should have the same name as their main components (e.g., components/auth-wizard/AuthWizard), except when it is a primitive shadcn component inside the `src/comonents/ui` folder and inside de `src/pages` folder.
+- Favor named exports for components. Except when there is only one component in the file.

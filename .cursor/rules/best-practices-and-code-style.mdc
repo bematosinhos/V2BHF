@@ -1,0 +1,110 @@
+---
+description: Rules for best practices to take into account when coding
+globs: *.{ts,tsx,js,jsx,html,css}
+---
+### Key Principles
+- Keep files small. Try to never have more than 150 lines per file. Break it into smaller files.
+- Follow the user’s requirements carefully & to the letter.
+- Always write correct, best practice, DRY principle (Dont Repeat Yourself), bug free, fully functional and working code also it should be aligned to listed rules down below at Code Implementation Guidelines.
+- Write concise, technical TypeScript code with accurate examples.
+- Use functional and declarative programming patterns; avoid classes.
+- Prefer iteration and modularization over code duplication.
+- Use descriptive variable and function/const names with auxiliary verbs (e.g., isLoading, hasError). Also, event functions should be named with a “handle” prefix, like “handleClick” for onClick and “handleKeyDown” for onKeyDown.
+- Structure files: exported component, subcomponents, helpers, static content, types.
+- Focus on easy and readability code, over being performant.
+- Fully implement all requested functionality.
+- Ensure code is complete! Verify thoroughly finalised.
+- Include all required imports, and ensure proper naming of key components.
+- Be concise Minimize any other prose.
+- If you think there might not be a correct answer, you say so.
+- If you do not know the answer, say so, instead of guessing.
+
+### TypeScript Usage
+- Use TypeScript for all code; prefer interfaces over types.
+- Avoid enums; use maps instead.
+- Use functional components with TypeScript interfaces.
+
+### Syntax and Formatting
+- Use the "function" keyword for pure functions.
+- Avoid unnecessary curly braces in conditionals; use concise syntax for simple statements.
+- Use declarative JSX.
+
+### UI and Styling
+- Aways try to create the most visually stunning  and simple experience as possible, the UX is one of the most important thing when solving any problem. Simpler is always better.
+- ALWAYS try to use Shadcn UI, Radix, and Tailwind for components and styling (Primitives are in the `src/comonents/ui` folder). Here are the availlable primitives:
+    - [accordion.tsx](mdc:src/components/ui/accordion.tsx)
+    - [alert-dialog.tsx](mdc:src/components/ui/alert-dialog.tsx)
+    - [alert.tsx](mdc:src/components/ui/alert.tsx)
+    - [aspect-ratio.tsx](mdc:src/components/ui/aspect-ratio.tsx)
+    - [avatar.tsx](mdc:src/components/ui/avatar.tsx)
+    - [badge.tsx](mdc:src/components/ui/badge.tsx)
+    - [breadcrumb.tsx](mdc:src/components/ui/breadcrumb.tsx)
+    - [button.tsx](mdc:src/components/ui/button.tsx)
+    - [calendar.tsx](mdc:src/components/ui/calendar.tsx)
+    - [card.tsx](mdc:src/components/ui/card.tsx)
+    - [carousel.tsx](mdc:src/components/ui/carousel.tsx)
+    - [chart.tsx](mdc:src/components/ui/chart.tsx)
+    - [checkbox.tsx](mdc:src/components/ui/checkbox.tsx)
+    - [collapsible.tsx](mdc:src/components/ui/collapsible.tsx)
+    - [command.tsx](mdc:src/components/ui/command.tsx)
+    - [context-menu.tsx](mdc:src/components/ui/context-menu.tsx)
+    - [dialog.tsx](mdc:src/components/ui/dialog.tsx)
+    - [drawer.tsx](mdc:src/components/ui/drawer.tsx)
+    - [dropdown-menu.tsx](mdc:src/components/ui/dropdown-menu.tsx)
+    - [form.tsx](mdc:src/components/ui/form.tsx)
+    - [hover-card.tsx](mdc:src/components/ui/hover-card.tsx)
+    - [input-otp.tsx](mdc:src/components/ui/input-otp.tsx)
+    - [input.tsx](mdc:src/components/ui/input.tsx)
+    - [label.tsx](mdc:src/components/ui/label.tsx)
+    - [menubar.tsx](mdc:src/components/ui/menubar.tsx)
+    - [navigation-menu.tsx](mdc:src/components/ui/navigation-menu.tsx)
+    - [pagination.tsx](mdc:src/components/ui/pagination.tsx)
+    - [popover.tsx](mdc:src/components/ui/popover.tsx)
+    - [progress.tsx](mdc:src/components/ui/progress.tsx)
+    - [radio-group.tsx](mdc:src/components/ui/radio-group.tsx)
+    - [resizable.tsx](mdc:src/components/ui/resizable.tsx)
+    - [scroll-area.tsx](mdc:src/components/ui/scroll-area.tsx)
+    - [select.tsx](mdc:src/components/ui/select.tsx)
+    - [separator.tsx](mdc:src/components/ui/separator.tsx)
+    - [sheet.tsx](mdc:src/components/ui/sheet.tsx)
+    - [sidebar.tsx](mdc:src/components/ui/sidebar.tsx)
+    - [skeleton.tsx](mdc:src/components/ui/skeleton.tsx)
+    - [slider.tsx](mdc:src/components/ui/slider.tsx)
+    - [sonner.tsx](mdc:src/components/ui/sonner.tsx)
+    - [switch.tsx](mdc:src/components/ui/switch.tsx)
+    - [table.tsx](mdc:src/components/ui/table.tsx)
+    - [tabs.tsx](mdc:src/components/ui/tabs.tsx)
+    - [textarea.tsx](mdc:src/components/ui/textarea.tsx)
+    - [toggle-group.tsx](mdc:src/components/ui/toggle-group.tsx)
+    - [toggle.tsx](mdc:src/components/ui/toggle.tsx)
+    - [tooltip.tsx](mdc:src/components/ui/tooltip.tsx)
+- Always use Tailwind classes for styling HTML elements; avoid using CSS or tags.
+- Implement responsive design with Tailwind CSS; always use a mobile-first approach.
+- When adding animations always use the main [index.css](mdc:src/index.css) file for adding the new animations and keyframes. Prefer using 'framer-motion' for complex animations.
+
+### Performance Optimization
+- Wrap client components in Suspense with fallback.
+- Use dynamic loading for non-critical components, even whole routes using the dynamic `import()` so vite splits the output bundles based on pages.
+- Optimize images: use WebP format, include size data, implement lazy loading.
+
+### Key Conventions
+- Always respect the conventions inside [.editorconfig](mdc:.editorconfig) and [.prettierrc](mdc:.prettierrc)
+- Always order imports by placing the Node core packages first, then the packages installed via npm, and finally the project files, always using `@/directory` and placing React components before other modules. Example:
+    ```typescript
+    import path from 'node:path'
+    import { useState } from 'react'
+    import { motion } from 'framer-motion'
+    import { Button } from '@/components/ui/button'
+    import { useAppState } from '@/store'
+    import reactLogo from '@/assets/react.svg'
+    import viteLogo from '/vite.svg'
+
+    ```
+- Use 'nuqs' package for URL search parameter state management.
+- Use 'zod' package for any user or api input validation.
+- Optimize Web Vitals (LCP, CLS, FID).
+- Use only for Web API access in small components.
+- Use early returns whenever possible to make the code more readable.
+- Use “class:” instead of the tertiary operator in class tags whenever possible.
+- Implement accessibility features on elements. For example, a tag should have a tabindex=“0”, aria-label, on:click, and on:keydown, and similar attributes.
+
