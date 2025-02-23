@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { Sparkles, Zap, Brain, Rocket } from 'lucide-react'
+import { Sparkles, Zap, Brain, Rocket, Shield, Code } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAppState } from '@/store'
 import { Badge } from '@/components/ui/badge'
@@ -13,24 +13,42 @@ const features = [
     title: 'Modern Stack',
     description: 'React 19, Vite, TypeScript & Tailwind CSS',
     iconColor: 'text-yellow-300',
+    iconSize: 'h-9 w-9',
   },
   {
     icon: Brain,
     title: 'AI-First',
     description: 'Optimized for AI-powered development',
     iconColor: 'text-purple-300',
+    iconSize: 'h-9 w-9',
+  },
+  {
+    icon: Code,
+    title: 'Quality Code',
+    description: 'Optimized for readability and maintainability',
+    iconColor: 'text-purple-300',
+    iconSize: 'h-12 w-12',
+  },
+  {
+    icon: Shield,
+    title: 'Safe',
+    description: 'Uses Typescript, ESLint, and Prettier enforce valid code',
+    iconColor: 'text-red-300',
+    iconSize: 'h-12 w-12',
   },
   {
     icon: Sparkles,
     title: 'Rich UI',
     description: 'Shadcn/ui + Framer Motion',
     iconColor: 'text-blue-300',
+    iconSize: 'h-8 w-8',
   },
   {
     icon: Rocket,
     title: 'Productivity',
     description: 'Exceptional DX and quick setup',
     iconColor: 'text-green-300',
+    iconSize: 'h-8 w-8',
   },
 ]
 
@@ -53,9 +71,9 @@ export default function Index() {
               <motion.div
                 key={feature.title}
                 whileHover={{ scale: 1.05 }}
-                className="flex items-start gap-3 rounded-lg bg-white/5 p-3 text-left"
+                className="flex items-center gap-3 rounded-lg bg-white/5 p-3 text-left"
               >
-                <feature.icon className={`h-5 w-5 ${feature.iconColor}`} />
+                <feature.icon className={`${feature.iconSize} ${feature.iconColor}`} />
                 <div>
                   <h3 className="mb-1 font-semibold">{feature.title}</h3>
                   <p className="text-sm text-white/70">{feature.description}</p>
@@ -67,7 +85,7 @@ export default function Index() {
           <div className="mt-8 flex justify-center">
             <Button
               asChild
-              className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
+              className="bg-gradient-to-r from-purple-500 to-blue-500 text-white transition-all hover:scale-105 hover:from-purple-600 hover:to-blue-600"
             >
               <a href="/start">Get Started →</a>
             </Button>
