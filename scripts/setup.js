@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { execSync } from 'node:child_process'
 
 // Função auxiliar para remover diretório recursivamente
 function removeDirRecursive(dir) {
@@ -95,6 +96,25 @@ export { App }
 
     fs.writeFileSync(appPath, newContent)
     console.log('✓ Routes updated in src/app.tsx')
+  }
+}
+
+// Função para commitar as mudanças no git
+function commitSetupChanges() {
+  console.log('\n🔧 Committing changes to git...')
+
+  try {
+    // Adiciona todas as mudanças ao stage
+    execSync('git add .', { stdio: 'inherit' })
+    console.log('✓ Changes staged')
+
+    // Cria o commit com uma mensagem descritiva
+    execSync('git commit -m "chore: cleanup starter kit and setup minimal structure"', {
+      stdio: 'inherit',
+    })
+    console.log('✓ Changes committed')
+  } catch (error) {
+    console.log('⚠️  Unable to commit changes:', error.message)
   }
 }
 
@@ -216,6 +236,9 @@ removeSetupFromPackageJson()
 // Remover o hook post-install
 console.log('\n🗑️  Removing post-install hook...')
 removeFile('.husky/post-install')
+
+// Commit das mudanças no git
+commitSetupChanges()
 
 // Remover o próprio arquivo de setup
 console.log('\n🗑️  Removing setup file...')
