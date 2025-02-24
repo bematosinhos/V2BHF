@@ -5,7 +5,7 @@ import path from 'node:path'
 function removeDirRecursive(dir) {
   if (fs.existsSync(dir)) {
     fs.rmSync(dir, { recursive: true, force: true })
-    console.log(`✓ Removido: ${dir}`)
+    console.log(`✓ Removed: ${dir}`)
   }
 }
 
@@ -13,7 +13,7 @@ function removeDirRecursive(dir) {
 function removeFile(file) {
   if (fs.existsSync(file)) {
     fs.unlinkSync(file)
-    console.log(`✓ Removido: ${file}`)
+    console.log(`✓ Removed: ${file}`)
   }
 }
 
@@ -21,7 +21,7 @@ function removeFile(file) {
 function ensureDirectoryExists(dir) {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true })
-    console.log(`✓ Criado diretório: ${dir}`)
+    console.log(`✓ Created directory: ${dir}`)
   }
 }
 
@@ -29,26 +29,26 @@ function ensureDirectoryExists(dir) {
 function createFile(file, content) {
   ensureDirectoryExists(path.dirname(file))
   fs.writeFileSync(file, content)
-  console.log(`✓ Criado: ${file}`)
+  console.log(`✓ Created: ${file}`)
 }
 
 // Função para remover o script setup do package.json
 function removeSetupFromPackageJson() {
-  console.log('\n🔧 Removendo script setup do package.json...')
+  console.log('\n🔧 Removing script setup from package.json...')
   const packageJsonPath = path.join(process.cwd(), 'package.json')
   const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'))
 
   // Remove o script setup
   if (packageJson.scripts && packageJson.scripts.setup) {
     delete packageJson.scripts.setup
-    console.log('✓ Script setup removido do package.json')
+    console.log('✓ Script setup removed from package.json')
     fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n')
   }
 }
 
 // Função para atualizar o arquivo de rotas
 function updateAppRoutes() {
-  console.log('\n🔧 Atualizando rotas da aplicação...')
+  console.log('\n🔧 Updating application routes...')
   const appPath = 'src/app.tsx'
 
   if (fs.existsSync(appPath)) {
@@ -94,25 +94,25 @@ export { App }
 `
 
     fs.writeFileSync(appPath, newContent)
-    console.log('✓ Rotas atualizadas em src/app.tsx')
+    console.log('✓ Routes updated in src/app.tsx')
   }
 }
 
 // Remover diretórios
-console.log('\n🗑️  Removendo diretórios...')
+console.log('\n🗑️  Removing directories...')
 removeDirRecursive('src/components/features')
 removeDirRecursive('src/components/howto')
 removeDirRecursive('src/components/layout')
 removeDirRecursive('src/components/logos')
 
 // Remover arquivos
-console.log('\n🗑️  Removendo arquivos...')
+console.log('\n🗑️  Removing files...')
 removeFile('src/pages/about.tsx')
 removeFile('src/pages/start.tsx')
 removeFile('src/pages/index.tsx')
 
 // Criar nova página index
-console.log('\n📝 Criando nova página index...')
+console.log('\n📝 Creating new index page...')
 const indexContent = `import { FC } from 'react';
 import { MainLayout } from '../components/layout/main-layout';
 
@@ -122,11 +122,11 @@ const IndexPage: FC = () => {
       <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-indigo-50">
         <div className="max-w-2xl w-full text-center space-y-8">
           <h1 className="text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
-            Bem-vindo ao Seu Projeto
+            Welcome to Your Project
           </h1>
           <p className="text-xl text-gray-600">
-            Este é o ponto de partida para criar algo incrível.
-            Personalize esta página de acordo com suas necessidades.
+            This is the starting point to create something amazing.
+            Customize this page according to your needs.
           </p>
           <div className="flex justify-center gap-4">
             <a
@@ -135,7 +135,7 @@ const IndexPage: FC = () => {
               rel="noopener noreferrer"
               className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              Começar
+              Get Started
             </a>
             <a
               href="https://github.com/m4n3z40/sbc-cursor-starter-kit"
@@ -156,7 +156,7 @@ export default IndexPage;
 `
 
 // Criar novo layout
-console.log('\n📝 Criando novo layout...')
+console.log('\n📝 Creating new layout...')
 const layoutContent = `import { FC, PropsWithChildren } from 'react';
 
 export const MainLayout: FC<PropsWithChildren> = ({ children }) => {
@@ -166,7 +166,7 @@ export const MainLayout: FC<PropsWithChildren> = ({ children }) => {
         <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center">
             <a href="/" className="text-xl font-bold text-gray-900">
-              Seu Projeto
+              Your Project
             </a>
           </div>
           <div className="flex items-center space-x-4">
@@ -182,7 +182,7 @@ export const MainLayout: FC<PropsWithChildren> = ({ children }) => {
               href="https://github.com/m4n3z40/sbc-cursor-starter-kit/blob/main/README.md"
               className="text-gray-600 hover:text-gray-900"
             >
-              Documentação
+              Documentation
             </a>
           </div>
         </nav>
@@ -195,7 +195,7 @@ export const MainLayout: FC<PropsWithChildren> = ({ children }) => {
       <footer className="bg-gray-50">
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
           <p className="text-center text-gray-500">
-            © {new Date().getFullYear()} Seu Projeto. Todos os direitos reservados.
+            © {new Date().getFullYear()} Your Project. All rights reserved.
           </p>
         </div>
       </footer>
@@ -214,19 +214,19 @@ updateAppRoutes()
 removeSetupFromPackageJson()
 
 // Remover o hook post-install
-console.log('\n🗑️  Removendo hook post-install...')
+console.log('\n🗑️  Removing post-install hook...')
 removeFile('.husky/post-install')
 
 // Remover o próprio arquivo de setup
-console.log('\n🗑️  Removendo arquivo de setup...')
+console.log('\n🗑️  Removing setup file...')
 process.on('exit', () => {
   try {
     fs.unlinkSync(import.meta.filename)
-    console.log('✓ Arquivo de setup removido')
+    console.log('✓ Setup file removed')
   } catch (err) {
     console.log(err)
-    console.log('⚠️  Não foi possível remover o arquivo de setup automaticamente')
+    console.log('⚠️  Unable to remove setup file automatically')
   }
 })
 
-console.log('\n✨ Setup concluído com sucesso!')
+console.log('\n✨ Setup completed successfully!')
