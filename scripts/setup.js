@@ -1,5 +1,5 @@
-const fs = require('fs')
-const path = require('path')
+import fs from 'node:fs'
+import path from 'node:path'
 
 // Função auxiliar para remover diretório recursivamente
 function removeDirRecursive(dir) {
@@ -43,6 +43,60 @@ function removeSetupFromPackageJson() {
     delete packageJson.scripts.setup
     fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n')
     console.log('✓ Script setup removido do package.json')
+  }
+}
+
+// Função para atualizar o arquivo de rotas
+function updateAppRoutes() {
+  console.log('\n🔧 Atualizando rotas da aplicação...')
+  const appPath = 'src/app.tsx'
+
+  if (fs.existsSync(appPath)) {
+    let content = fs.readFileSync(appPath, 'utf8')
+
+    // Novo conteúdo do arquivo com apenas a rota do index
+    const newContent = `import { Suspense, lazy } from 'react'
+import { BrowserRouter as Router, Routes, Route, RouteProps } from 'react-router-dom'
+import { ThemeProvider } from 'next-themes'
+import { Loader2 } from 'lucide-react'
+import { Toaster } from './components/ui/sonner'
+
+const routes: RouteProps[] = [
+  {
+    index: true,
+    path: '/',
+    Component: lazy(() => import('./pages/index')),
+  },
+]
+
+const loading = (
+  <div className="flex min-h-screen items-center justify-center">
+    <Loader2 className="text-primary h-8 w-8 animate-spin" />
+  </div>
+)
+
+function App() {
+  return (
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <Router>
+        <Suspense fallback={loading}>
+          <Routes>
+            {routes.map((route) => (
+              <Route key={route.path} {...route} />
+            ))}
+          </Routes>
+        </Suspense>
+        <Toaster />
+      </Router>
+    </ThemeProvider>
+  )
+}
+
+export { App }
+`
+
+    fs.writeFileSync(appPath, newContent)
+    console.log('✓ Rotas atualizadas em src/app.tsx')
   }
 }
 
@@ -154,6 +208,9 @@ export const MainLayout: FC<PropsWithChildren> = ({ children }) => {
 
 createFile('src/pages/index.tsx', indexContent)
 createFile('src/components/layout/main-layout.tsx', layoutContent)
+
+// Atualizar rotas removendo as páginas excluídas
+updateAppRoutes()
 
 // Remover script setup do package.json
 removeSetupFromPackageJson()

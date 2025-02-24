@@ -2,7 +2,6 @@ import { Suspense, lazy } from 'react'
 import { BrowserRouter as Router, Routes, Route, RouteProps } from 'react-router-dom'
 import { ThemeProvider } from 'next-themes'
 import { Loader2 } from 'lucide-react'
-import { MainLayout } from './components/layout/main-layout'
 import { Toaster } from './components/ui/sonner'
 
 const routes: RouteProps[] = [
@@ -31,15 +30,13 @@ function App() {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <Router>
-        <MainLayout>
-          <Suspense fallback={loading}>
-            <Routes>
-              {routes.map((route) => (
-                <Route key={route.path} {...route} />
-              ))}
-            </Routes>
-          </Suspense>
-        </MainLayout>
+        <Suspense fallback={loading}>
+          <Routes>
+            {routes.map((route) => (
+              <Route key={route.path} {...route} />
+            ))}
+          </Routes>
+        </Suspense>
         <Toaster />
       </Router>
     </ThemeProvider>

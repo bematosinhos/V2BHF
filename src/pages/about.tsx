@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion'
+import { MainLayout } from '@/components/layout/main-layout'
 import { PageContainer } from '@/components/layout/page-container'
 import { PageHeader } from '@/components/layout/page-header'
 import { CardContainer } from '@/components/layout/card-container'
@@ -48,58 +49,60 @@ const principles = [
 
 export default function About() {
   return (
-    <PageContainer>
-      <RotatingLogos />
+    <MainLayout>
+      <PageContainer>
+        <RotatingLogos />
 
-      <CardContainer className="text-center">
-        <PageHeader
-          title="About SBC Starter Kit"
-          description="A modern, feature-rich boilerplate for building scalable React applications with best practices and powerful tools built-in."
-        />
+        <CardContainer className="text-center">
+          <PageHeader
+            title="About SBC Starter Kit"
+            description="A modern, feature-rich boilerplate for building scalable React applications with best practices and powerful tools built-in."
+          />
 
-        <div className="grid gap-6 sm:gap-8 md:grid-cols-2">
-          <div>
-            <h2 className="mb-3 text-center text-xl font-semibold text-white/90 sm:mb-4 sm:text-2xl">
-              Features
-            </h2>
-            <div className="space-y-4 sm:space-y-6">
-              {features.map((feature, index) => (
-                <FeatureCard
-                  key={feature.title}
-                  title={feature.title}
-                  description={feature.description}
-                  index={index}
-                  variant="left"
-                />
-              ))}
+          <div className="grid gap-6 sm:gap-8 md:grid-cols-2">
+            <div>
+              <h2 className="mb-3 text-center text-xl font-semibold text-white/90 sm:mb-4 sm:text-2xl">
+                Features
+              </h2>
+              <div className="space-y-4 sm:space-y-6">
+                {features.map((feature, index) => (
+                  <FeatureCard
+                    key={feature.title}
+                    title={feature.title}
+                    description={feature.description}
+                    index={index}
+                    variant="left"
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h2 className="mb-4 text-center text-2xl font-semibold text-white/90">Principles</h2>
+              <div className="space-y-6">
+                {principles.map((principle, index) => (
+                  <FeatureCard
+                    key={principle.title}
+                    title={principle.title}
+                    description={principle.description}
+                    index={index}
+                    variant="right"
+                  />
+                ))}
+              </div>
             </div>
           </div>
+        </CardContainer>
 
-          <div>
-            <h2 className="mb-4 text-center text-2xl font-semibold text-white/90">Principles</h2>
-            <div className="space-y-6">
-              {principles.map((principle, index) => (
-                <FeatureCard
-                  key={principle.title}
-                  title={principle.title}
-                  description={principle.description}
-                  index={index}
-                  variant="right"
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      </CardContainer>
-
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-        className="text-center text-white/80"
-      >
-        <p className="text-sm">Start building amazing applications today with SBC Starter Kit</p>
-      </motion.div>
-    </PageContainer>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="text-center text-white/80"
+        >
+          <p className="text-sm">Start building amazing applications today with SBC Starter Kit</p>
+        </motion.div>
+      </PageContainer>
+    </MainLayout>
   )
 }
