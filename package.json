@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "format": "prettier --write .",
     "lint:fix": "eslint . --fix",
-    "prepare": "husky",
+    "prepare": "husky || true",
     "setup": "node scripts/setup.js"
   },
   "lint-staged": {
