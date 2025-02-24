@@ -39,16 +39,9 @@ function removeSetupFromPackageJson() {
   const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'))
 
   // Remove o script setup
-  if (packageJson.scripts) {
-    if (packageJson.scripts.prepare && packageJson.scripts.prepare !== 'husky') {
-      packageJson.scripts.prepare = 'husky'
-      console.log('✓ Script prepare atualizado no package.json')
-    }
-    if (packageJson.scripts.setup) {
-      delete packageJson.scripts.setup
-      console.log('✓ Script setup removido do package.json')
-    }
-
+  if (packageJson.scripts && packageJson.scripts.setup) {
+    delete packageJson.scripts.setup
+    console.log('✓ Script setup removido do package.json')
     fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n')
   }
 }
@@ -59,8 +52,6 @@ function updateAppRoutes() {
   const appPath = 'src/app.tsx'
 
   if (fs.existsSync(appPath)) {
-    let content = fs.readFileSync(appPath, 'utf8')
-
     // Novo conteúdo do arquivo com apenas a rota do index
     const newContent = `import { Suspense, lazy } from 'react'
 import { BrowserRouter as Router, Routes, Route, RouteProps } from 'react-router-dom'

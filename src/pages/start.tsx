@@ -9,7 +9,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { CardContainer } from '@/components/layout/card-container'
 import { CopyCode } from '@/components/howto/copy-code'
 
-const cursorPrompt = `Clone the SBC Starter Kit repository from https://github.com/m4n3z40/sbc-cursor-starter-kit, install all dependencies and start the development server. Then show me what's available in the project.`
+const cursorPrompt = `Clone the SBC Starter Kit repository from https://github.com/m4n3z40/sbc-cursor-starter-kit, run the 'setup' npm script, install all dependencies and start the development server. Then show me what's available in the project.`
 
 const installSteps = [
   {
