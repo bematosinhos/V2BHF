@@ -139,7 +139,7 @@ const IndexPage: FC = () => {
           </p>
           <div className="flex justify-center gap-4">
             <a
-              href="https://vitejs.dev"
+              href="https://sbc-cursor-starter-kit.netlify.app"
               target="_blank"
               rel="noopener noreferrer"
               className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -147,7 +147,7 @@ const IndexPage: FC = () => {
               Começar
             </a>
             <a
-              href="https://github.com"
+              href="https://github.com/m4n3z40/sbc-cursor-starter-kit"
               target="_blank"
               rel="noopener noreferrer"
               className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
@@ -180,7 +180,7 @@ export const MainLayout: FC<PropsWithChildren> = ({ children }) => {
           </div>
           <div className="flex items-center space-x-4">
             <a
-              href="https://github.com"
+              href="https://github.com/m4n3z40/sbc-cursor-starter-kit"
               target="_blank"
               rel="noopener noreferrer"
               className="text-gray-600 hover:text-gray-900"
@@ -188,7 +188,7 @@ export const MainLayout: FC<PropsWithChildren> = ({ children }) => {
               GitHub
             </a>
             <a
-              href="/docs"
+              href="https://github.com/m4n3z40/sbc-cursor-starter-kit/blob/main/README.md"
               className="text-gray-600 hover:text-gray-900"
             >
               Documentação
