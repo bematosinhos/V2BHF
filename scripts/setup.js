@@ -39,10 +39,17 @@ function removeSetupFromPackageJson() {
   const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'))
 
   // Remove o script setup
-  if (packageJson.scripts && packageJson.scripts.setup) {
-    delete packageJson.scripts.setup
+  if (packageJson.scripts) {
+    if (packageJson.scripts.prepare && packageJson.scripts.prepare !== 'husky') {
+      packageJson.scripts.prepare = 'husky'
+      console.log('✓ Script prepare atualizado no package.json')
+    }
+    if (packageJson.scripts.setup) {
+      delete packageJson.scripts.setup
+      console.log('✓ Script setup removido do package.json')
+    }
+
     fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n')
-    console.log('✓ Script setup removido do package.json')
   }
 }
 
@@ -215,9 +222,9 @@ updateAppRoutes()
 // Remover script setup do package.json
 removeSetupFromPackageJson()
 
-// Remover o hook post-checkout
-console.log('\n🗑️  Removendo hook post-checkout...')
-removeFile('.husky/post-checkout')
+// Remover o hook post-install
+console.log('\n🗑️  Removendo hook post-install...')
+removeFile('.husky/post-install')
 
 // Remover o próprio arquivo de setup
 console.log('\n🗑️  Removendo arquivo de setup...')
@@ -226,6 +233,7 @@ process.on('exit', () => {
     fs.unlinkSync(__filename)
     console.log('✓ Arquivo de setup removido')
   } catch (err) {
+    console.log(err)
     console.log('⚠️  Não foi possível remover o arquivo de setup automaticamente')
   }
 })
