@@ -112,7 +112,7 @@ console.log('\n🗑️  Removendo diretórios...')
 removeDirRecursive('src/components/features')
 removeDirRecursive('src/components/howto')
 removeDirRecursive('src/components/layout')
-removeDirRecursive('logos')
+removeDirRecursive('src/components/logos')
 
 // Remover arquivos
 console.log('\n🗑️  Removendo arquivos...')
@@ -230,7 +230,7 @@ removeFile('.husky/post-install')
 console.log('\n🗑️  Removendo arquivo de setup...')
 process.on('exit', () => {
   try {
-    fs.unlinkSync(__filename)
+    fs.unlinkSync(import.meta.filename)
     console.log('✓ Arquivo de setup removido')
   } catch (err) {
     console.log(err)
