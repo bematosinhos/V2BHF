@@ -31,6 +31,5 @@ You are an expert in TypeScript, Node.js, Vite, React Router, React, Shadcn UI, 
     - `<root>/src/assets/` - Where assets referenced from components and processed through the build process are located.
 
 ### Naming Conventions
-- Use lowercase with dashes for directories (e.g., components/auth-wizard).
-- Component files should have the same name as their main components (e.g., components/auth-wizard/AuthWizard), except when it is a primitive shadcn component inside the `src/comonents/ui` folder and inside de `src/pages` folder.
+- Use lowercase with dashes for directories and files (e.g., components/auth-wizard, components/auth-wizard/auth-core).
 - Favor named exports for components. Except when there is only one component in the file.

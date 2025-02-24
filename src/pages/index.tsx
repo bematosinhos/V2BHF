@@ -3,8 +3,8 @@ import { Sparkles, Zap, Brain, Rocket, Shield, Code } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAppState } from '@/store'
 import { Badge } from '@/components/ui/badge'
-import { PageContainer } from '@/components/ui/page-container'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageContainer } from '@/components/layout/page-container'
+import { PageHeader } from '@/components/layout/page-header'
 import { RotatingLogos } from '@/components/logos/rotating-logos'
 
 const features = [

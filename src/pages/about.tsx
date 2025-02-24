@@ -1,9 +1,9 @@
-import { PageContainer } from '@/components/ui/page-container'
-import { PageHeader } from '@/components/ui/page-header'
-import { CardContainer } from '@/components/ui/card-container'
+import { motion } from 'framer-motion'
+import { PageContainer } from '@/components/layout/page-container'
+import { PageHeader } from '@/components/layout/page-header'
+import { CardContainer } from '@/components/layout/card-container'
 import { RotatingLogos } from '@/components/logos/rotating-logos'
 import { FeatureCard } from '@/components/features/feature-card'
-import { motion } from 'framer-motion'
 
 const features = [
   {

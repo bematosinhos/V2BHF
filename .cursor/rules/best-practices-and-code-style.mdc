@@ -39,7 +39,7 @@ globs: *.{ts,tsx,js,jsx,html,css}
 
 ### UI and Styling
 - Aways try to create the most visually stunning  and simple experience as possible, the UX is one of the most important thing when solving any problem. Simpler is always better.
-- ALWAYS try to use Shadcn UI, Radix, and Tailwind for components and styling (Primitives are in the `src/comonents/ui` folder). Here are the availlable primitives:
+- ALWAYS try to use Shadcn UI, Radix, and Tailwind for components and styling (Primitives are in the `src/comonents/ui` folder). NEVER ADD COMPONENTS TO THIS FOLDER. Here are the availlable primitives:
     - [accordion.tsx](mdc:src/components/ui/accordion.tsx)
     - [alert-dialog.tsx](mdc:src/components/ui/alert-dialog.tsx)
     - [alert.tsx](mdc:src/components/ui/alert.tsx)

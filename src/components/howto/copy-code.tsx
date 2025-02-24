@@ -1,5 +1,5 @@
 import { Copy } from 'lucide-react'
-import { Button } from './button'
+import { Button } from '../ui/button'
 import { cn } from '@/lib/utils'
 
 interface CopyCodeProps {

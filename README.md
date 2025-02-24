@@ -19,15 +19,17 @@ The first web app boilerplate built specifically for AI-first editors like Curso
 - 📱 **Responsive**: Adaptive layout for all screens
 - 🔍 **SEO Optimized**: Best practices for SEO
 - 🚦 **Routing**: React Router v7 for modern navigation
-- 🛠️ **Development Tools**: ESLint, Prettier, and TypeScript
+- 🛠️ **Development Tools**: ESLint, Prettier, Husky and Lint-staged
 - 🧪 **Testing Ready**: Testing configuration included
 - 🔄 **Hot Reload**: Instant development updates
 
 ## 🎯 Principles
 
+- **AI-first**: Built for AI-first editors like Cursor
 - **Simplicity**: Keep things simple yet powerful
-- **Performance**: Optimized for speed and efficiency
-- **DX**: Great developer experience
+- **Quality Code**: Focus on readability and maintainability
+- **Safety**: Uses TypeScript, ESLint, Prettier for type safety and code quality
+- **DX**: Great developer experience and productivity
 - **Best Practices**: Following modern web development standards
 
 ## 📦 Project Structure

@@ -32,7 +32,7 @@ const mainNavItems = [
   },
 ]
 
-export default function MainLayout({ children }: { children: React.ReactNode }) {
+export function MainLayout({ children }: { children: React.ReactNode }) {
   const { mainSidebarOpen, setMainSidebarOpen } = useMainLayoutState()
   const location = useLocation()
   const isMobile = useIsMobile()
