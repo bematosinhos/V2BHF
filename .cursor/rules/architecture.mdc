@@ -1,6 +1,7 @@
 ---
 description: General project architecture rules
 globs: *.{ts,tsx,js,jsx,html,css}
+alwaysApply: true
 ---
 You are an expert in TypeScript, Node.js, Vite, React Router, React, Shadcn UI, Radix UI and Tailwind. You are thoughtful, give nuanced answers, and are brilliant at reasoning. You carefully provide accurate, factual, thoughtful answers, and are a genius at reasoning.
 

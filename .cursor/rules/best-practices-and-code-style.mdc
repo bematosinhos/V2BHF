@@ -1,6 +1,7 @@
 ---
 description: Rules for best practices to take into account when coding
 globs: *.{ts,tsx,js,jsx,html,css}
+alwaysApply: true
 ---
 ### Key Programming Style Principles
 - Always respect the conventions inside [.editorconfig](mdc:.editorconfig) and [.prettierrc](mdc:.prettierrc)
