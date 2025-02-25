@@ -1,4 +1,14 @@
 import { motion } from 'framer-motion'
+import {
+  Layers,
+  Database,
+  Palette,
+  Sparkles,
+  Lightbulb,
+  Zap,
+  Code,
+  CheckCircle,
+} from 'lucide-react'
 import { MainLayout } from '@/components/layout/main-layout'
 import { PageContainer } from '@/components/layout/page-container'
 import { PageHeader } from '@/components/layout/page-header'
@@ -11,20 +21,24 @@ const features = [
     title: 'Modern Stack',
     description:
       'Built with React 19, Vite, TypeScript, React Router, and Tailwind CSS for a powerful and flexible development experience',
+    icon: Layers,
   },
   {
     title: 'State Management',
     description:
       'Integrated with Zustand for simple and efficient state management without boilerplate code',
+    icon: Database,
   },
   {
     title: 'Component Library',
     description:
       'Includes Shadcn/ui components for beautiful, accessible, and customizable UI elements',
+    icon: Palette,
   },
   {
     title: 'Animations',
     description: 'Framer Motion integration for smooth, professional animations and transitions',
+    icon: Sparkles,
   },
 ]
 
@@ -32,18 +46,22 @@ const principles = [
   {
     title: 'Simplicity',
     description: 'Keep things simple but powerful, avoiding unnecessary complexity',
+    icon: Lightbulb,
   },
   {
     title: 'Performance',
     description: 'Optimized for speed and efficiency from development to production',
+    icon: Zap,
   },
   {
     title: 'Developer Experience',
     description: 'Great DX with hot reload, TypeScript support, and intuitive project structure',
+    icon: Code,
   },
   {
     title: 'Best Practices',
     description: 'Following modern web development standards and patterns',
+    icon: CheckCircle,
   },
 ]
 
@@ -72,6 +90,7 @@ export default function About() {
                     description={feature.description}
                     index={index}
                     variant="left"
+                    icon={feature.icon}
                   />
                 ))}
               </div>
@@ -87,6 +106,7 @@ export default function About() {
                     description={principle.description}
                     index={index}
                     variant="right"
+                    icon={principle.icon}
                   />
                 ))}
               </div>

@@ -55,7 +55,9 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
                   <div className="flex flex-col gap-3 p-4 sm:p-6">
                     <SheetTitle className="flex items-center gap-2">
                       <img src="/vite.svg" alt="Logo" className="h-5 w-5 sm:h-6 sm:w-6" />
-                      <span className="text-sm font-semibold sm:text-base">SBC Starter Kit</span>
+                      <Link to="/" className="text-sm font-semibold sm:text-base">
+                        SBC Starter Kit
+                      </Link>
                     </SheetTitle>
                     <Separator />
                     <nav className="flex flex-col gap-1 sm:gap-2">
@@ -86,9 +88,9 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
               {/* Logo */}
               <div className="flex items-center gap-2">
                 <img src="/vite.svg" alt="Logo" className="h-5 w-5 sm:h-6 sm:w-6" />
-                <span className="hidden text-sm font-semibold sm:text-base md:inline-block">
+                <Link to="/" className="hidden text-sm font-semibold sm:text-base md:inline-block">
                   SBC Starter Kit
-                </span>
+                </Link>
               </div>
 
               {/* Desktop Navigation */}

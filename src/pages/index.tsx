@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Sparkles, Zap, Brain, Rocket, Shield, Code } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -89,7 +90,7 @@ export default function Index() {
                 asChild
                 className="bg-gradient-to-r from-purple-500 to-blue-500 text-white transition-all hover:scale-105 hover:from-purple-600 hover:to-blue-600"
               >
-                <a href="/start">Get Started →</a>
+                <Link to="/start">Get Started →</Link>
               </Button>
             </div>
           </div>
