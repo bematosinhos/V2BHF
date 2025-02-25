@@ -20,8 +20,13 @@ const installSteps = [
   },
   {
     title: 'Install Dependencies',
-    command: 'npm install --legacy-peer-deps\n# or\npnpm install --legacy-peer-deps',
+    command: 'npm install\n# or\npnpm install',
     description: 'Install all required dependencies using your preferred package manager',
+  },
+  {
+    title: 'Setup Project',
+    command: 'npm run setup\n# or\npnpm run setup',
+    description: 'Run the setup script to configure the project (this script can be run only once)',
   },
   {
     title: 'Start Development',
