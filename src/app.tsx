@@ -1,14 +1,41 @@
 import { Suspense, lazy } from 'react'
-import { BrowserRouter as Router, Routes, Route, RouteProps } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, RouteProps, Navigate } from 'react-router-dom'
 import { ThemeProvider } from 'next-themes'
 import { Loader2 } from 'lucide-react'
 import { Toaster } from './components/ui/sonner'
 
 const routes: RouteProps[] = [
   {
-    index: true,
     path: '/',
-    Component: lazy(() => import('./pages/index')),
+    element: <Navigate to="/auth/login" replace />,
+  },
+  {
+    path: '/auth/login',
+    Component: lazy(() => import('./pages/auth/login')),
+  },
+  {
+    path: '/dashboard',
+    Component: lazy(() => import('./pages/dashboard')),
+  },
+  {
+    path: '/professionals',
+    Component: lazy(() => import('./pages/professionals')),
+  },
+  {
+    path: '/professionals/:id',
+    Component: lazy(() => import('./pages/professionals/detail')),
+  },
+  {
+    path: '/schedule',
+    Component: lazy(() => import('./pages/schedule')),
+  },
+  {
+    path: '/register',
+    Component: lazy(() => import('./pages/register')),
+  },
+  {
+    path: '*',
+    element: <Navigate to="/dashboard" replace />,
   },
 ]
 
@@ -24,8 +51,8 @@ function App() {
       <Router>
         <Suspense fallback={loading}>
           <Routes>
-            {routes.map((route) => (
-              <Route key={route.path} {...route} />
+            {routes.map((route, index) => (
+              <Route key={index} {...route} />
             ))}
           </Routes>
         </Suspense>

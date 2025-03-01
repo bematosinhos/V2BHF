@@ -168,3 +168,24 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
+
+/* Ocultação dos nomes dos dias da semana no calendário */
+.rdp-with-hidden-weekdays .rdp-head_row,
+.rdp-with-hidden-weekdays .rdp-head_cell {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  width: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Estilos para ocultar nomes dos dias da semana em todos os calendários com a classe específica */
+.rdp-head_cell {
+  font-size: 0.8rem;
+}
+
+.hide-weekday-names .rdp-head_row {
+  display: none !important;
+}
