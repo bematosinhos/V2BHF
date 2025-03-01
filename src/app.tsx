@@ -42,13 +42,27 @@ function App() {
   useEffect(() => {
     // Verificar se há uma sessão ativa
     const checkSession = async () => {
-      const { data } = await supabase.auth.getSession()
-      if (data.session) {
-        const { user } = data.session
-        // Simular login para definir o estado
-        await login(user.email || '', '') // password vazio, pois já temos a sessão
-        // Carregar dados iniciais após login
-        await fetchProfessionals()
+      try {
+        const { data, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          console.error('Erro ao verificar sessão:', error.message)
+          return
+        }
+        
+        if (data.session) {
+          const { user } = data.session
+          try {
+            // Simular login para definir o estado
+            await login(user.email || '', '') // password vazio, pois já temos a sessão
+            // Carregar dados iniciais após login
+            await fetchProfessionals()
+          } catch (loginError) {
+            console.error('Erro ao processar login com sessão existente:', loginError)
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao verificar sessão:', error)
       }
     }
     
@@ -56,13 +70,17 @@ function App() {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'SIGNED_IN' && session) {
-          await login(session.user.email || '', '')
-          await fetchProfessionals()
+          try {
+            await login(session.user.email || '', '')
+            await fetchProfessionals()
+          } catch (error) {
+            console.error('Erro ao processar login após mudança de autenticação:', error)
+          }
         }
       }
     )
     
-    checkSession()
+    void checkSession()
     
     // Limpar listener ao desmontar
     return () => {

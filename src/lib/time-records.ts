@@ -1,5 +1,17 @@
 import { supabase } from './supabase';
 
+// Definindo a interface para o tipo TimeRecord
+export interface TimeRecord {
+  id?: string;
+  professional_id: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  description?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 // Obter registros de tempo de um profissional
 export async function getTimeRecordsForProfessional(professionalId: string) {
   const { data, error } = await supabase
@@ -22,7 +34,7 @@ export async function getTimeRecordsForDate(date: string) {
 }
 
 // Adicionar um registro de tempo
-export async function addTimeRecord(recordData: any) {
+export async function addTimeRecord(recordData: Omit<TimeRecord, 'id' | 'created_at' | 'updated_at'>) {
   const { data, error } = await supabase
     .from('time_records')
     .insert(recordData)
@@ -32,7 +44,7 @@ export async function addTimeRecord(recordData: any) {
 }
 
 // Atualizar um registro de tempo
-export async function updateTimeRecord(id: string, updates: any) {
+export async function updateTimeRecord(id: string, updates: Partial<Omit<TimeRecord, 'id' | 'created_at' | 'updated_at'>>) {
   const { data, error } = await supabase
     .from('time_records')
     .update(updates)

@@ -25,6 +25,7 @@ import { toast } from 'sonner'
 import { Eye, EyeOff } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { supabase } from '@/lib/supabase'
+import { AuthError } from '@supabase/supabase-js'
 
 const registerFormSchema = z
   .object({
@@ -50,7 +51,7 @@ const RegisterPage: FC = () => {
   // Redirecionar para o dashboard se já estiver autenticado
   useEffect(() => {
     if (isAuthenticated) {
-      void navigate('/dashboard')
+      navigate('/dashboard')
     }
   }, [isAuthenticated, navigate])
 
@@ -64,7 +65,7 @@ const RegisterPage: FC = () => {
     },
   })
 
-  async function onSubmit(data: RegisterFormValues) {
+  const onSubmit = async (data: RegisterFormValues) => {
     setIsLoading(true)
 
     try {
@@ -81,6 +82,7 @@ const RegisterPage: FC = () => {
 
       if (signUpError) {
         toast.error(signUpError.message || 'Erro ao criar conta')
+        setIsLoading(false)
         return
       }
 
@@ -89,7 +91,8 @@ const RegisterPage: FC = () => {
       // Redirecionar para a página de login após registro bem-sucedido
       navigate('/auth/login')
     } catch (error) {
-      toast.error('Ocorreu um erro ao criar sua conta')
+      const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro ao criar sua conta';
+      toast.error(errorMessage)
       console.error(error)
     } finally {
       setIsLoading(false)
@@ -97,7 +100,7 @@ const RegisterPage: FC = () => {
   }
 
   // Função para fazer login com Google
-  async function signInWithGoogle() {
+  const signInWithGoogle = async () => {
     try {
       setIsLoading(true)
       const { error } = await supabase.auth.signInWithOAuth({
@@ -111,7 +114,8 @@ const RegisterPage: FC = () => {
         toast.error(error.message || 'Erro ao fazer login com Google')
       }
     } catch (error) {
-      toast.error('Ocorreu um erro ao fazer login com Google')
+      const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro ao fazer login com Google';
+      toast.error(errorMessage)
       console.error(error)
     } finally {
       setIsLoading(false)
@@ -119,7 +123,7 @@ const RegisterPage: FC = () => {
   }
 
   // Função para fazer login com Microsoft
-  async function signInWithMicrosoft() {
+  const signInWithMicrosoft = async () => {
     try {
       setIsLoading(true)
       const { error } = await supabase.auth.signInWithOAuth({
@@ -133,7 +137,8 @@ const RegisterPage: FC = () => {
         toast.error(error.message || 'Erro ao fazer login com Microsoft')
       }
     } catch (error) {
-      toast.error('Ocorreu um erro ao fazer login com Microsoft')
+      const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro ao fazer login com Microsoft';
+      toast.error(errorMessage)
       console.error(error)
     } finally {
       setIsLoading(false)
@@ -156,7 +161,8 @@ const RegisterPage: FC = () => {
             <Form {...form}>
               <form
                 onSubmit={(e) => {
-                  void form.handleSubmit(onSubmit)(e)
+                  e.preventDefault();
+                  void form.handleSubmit(onSubmit)(e);
                 }}
                 className="space-y-4"
               >
@@ -301,7 +307,7 @@ const RegisterPage: FC = () => {
                 variant="outline" 
                 className="w-full" 
                 disabled={isLoading}
-                onClick={signInWithGoogle}
+                onClick={() => void signInWithGoogle()}
               >
                 Google
               </Button>
@@ -309,7 +315,7 @@ const RegisterPage: FC = () => {
                 variant="outline" 
                 className="w-full" 
                 disabled={isLoading}
-                onClick={signInWithMicrosoft}
+                onClick={() => void signInWithMicrosoft()}
               >
                 Microsoft
               </Button>

@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { useAppStore } from '@/store'
+import { Session } from '@supabase/supabase-js'
 
 const AuthCallback: FC = () => {
   const [loading, setLoading] = useState(true)
@@ -16,7 +17,8 @@ const AuthCallback: FC = () => {
     const handleAuthCallback = async () => {
       try {
         // Obter a sessão atual
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        const { data, error: sessionError } = await supabase.auth.getSession()
+        const session = data.session as Session | null
         
         if (sessionError) {
           setError(sessionError.message)
@@ -31,21 +33,28 @@ const AuthCallback: FC = () => {
         }
         
         // Usuário está autenticado, atualize o estado global e redirecione
-        await login(session.user.email || '', '')
-        await fetchProfessionals()
-        
-        toast.success('Login realizado com sucesso!')
-        navigate('/dashboard')
+        try {
+          await login(session.user.email || '', '')
+          await fetchProfessionals()
+          
+          toast.success('Login realizado com sucesso!')
+          navigate('/dashboard')
+        } catch (loginError) {
+          const errorMessage = loginError instanceof Error ? loginError.message : 'Erro ao processar login';
+          setError(errorMessage)
+          toast.error(errorMessage)
+        }
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro durante a autenticação';
         console.error('Erro no callback de autenticação:', error)
-        setError('Ocorreu um erro durante a autenticação')
-        toast.error('Ocorreu um erro durante a autenticação')
+        setError(errorMessage)
+        toast.error(errorMessage)
       } finally {
         setLoading(false)
       }
     }
     
-    handleAuthCallback()
+    void handleAuthCallback()
   }, [login, fetchProfessionals, navigate])
   
   return (

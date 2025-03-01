@@ -1,5 +1,16 @@
 import { supabase } from './supabase';
 
+// Definindo a interface para o tipo Professional
+export interface Professional {
+  id?: string;
+  name: string;
+  email: string;
+  phone?: string;
+  specialty?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 // Obter todos os profissionais
 export async function getAllProfessionals() {
   const { data, error } = await supabase
@@ -22,7 +33,7 @@ export async function getProfessional(id: string) {
 }
 
 // Adicionar um profissional
-export async function addProfessional(professionalData: any) {
+export async function addProfessional(professionalData: Omit<Professional, 'id' | 'created_at' | 'updated_at'>) {
   const { data, error } = await supabase
     .from('professionals')
     .insert(professionalData)
@@ -32,7 +43,7 @@ export async function addProfessional(professionalData: any) {
 }
 
 // Atualizar um profissional
-export async function updateProfessional(id: string, updates: any) {
+export async function updateProfessional(id: string, updates: Partial<Omit<Professional, 'id' | 'created_at' | 'updated_at'>>) {
   const { data, error } = await supabase
     .from('professionals')
     .update(updates)

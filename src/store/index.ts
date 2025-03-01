@@ -4,6 +4,44 @@ import * as authService from '../lib/auth'
 import * as professionalService from '../lib/professionals'
 import * as timeRecordService from '../lib/time-records'
 
+// Tipos para representar os dados do Supabase (snake_case)
+export interface SupabaseProfessional {
+  id: string
+  name: string
+  role: string
+  status: 'active' | 'inactive' | 'vacation'
+  start_date: string
+  avatar_url?: string
+  cpf: string
+  birth_date: string
+  work_hours: string
+  work_city: string
+  salary: string
+  address: string
+  phone: string
+  email: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface SupabaseTimeRecord {
+  id: string
+  professional_id: string
+  date: string
+  start_time: string
+  end_time: string
+  check_in?: string
+  check_out?: string
+  break_start?: string
+  break_end?: string
+  type: 'regular' | 'overtime' | 'dayoff' | 'vacation'
+  notes?: string
+  description?: string
+  created_at?: string
+  updated_at?: string
+}
+
+// Tipos para a aplicação (camelCase)
 export interface Professional {
   id: string
   name: string
@@ -131,6 +169,73 @@ export const mockTimeRecords: TimeRecord[] = [
   // ... outros registros (mantidos para referência)
 ]
 
+// Funções de conversão entre snake_case e camelCase
+const convertToSupabaseProfessional = (professional: Omit<Professional, 'id'>): Omit<SupabaseProfessional, 'id' | 'created_at' | 'updated_at'> => {
+  return {
+    name: professional.name,
+    role: professional.role,
+    status: professional.status,
+    start_date: professional.startDate,
+    avatar_url: professional.avatarUrl,
+    cpf: professional.cpf,
+    birth_date: professional.birthDate,
+    work_hours: professional.workHours,
+    work_city: professional.workCity,
+    salary: professional.salary,
+    address: professional.address,
+    phone: professional.phone,
+    email: professional.email || '' // Garantir que email nunca seja undefined
+  };
+};
+
+const convertToAppProfessional = (professional: SupabaseProfessional): Professional => {
+  return {
+    id: professional.id,
+    name: professional.name,
+    role: professional.role,
+    status: professional.status,
+    startDate: professional.start_date,
+    avatarUrl: professional.avatar_url,
+    cpf: professional.cpf,
+    birthDate: professional.birth_date,
+    workHours: professional.work_hours,
+    workCity: professional.work_city,
+    salary: professional.salary,
+    address: professional.address,
+    phone: professional.phone,
+    email: professional.email
+  };
+};
+
+const convertToSupabaseTimeRecord = (record: Omit<TimeRecord, 'id'>): Omit<SupabaseTimeRecord, 'id' | 'created_at' | 'updated_at'> => {
+  return {
+    professional_id: record.professionalId,
+    date: record.date,
+    start_time: record.type === 'regular' ? '08:00' : '00:00', // Valores padrão para satisfy TypeScript
+    end_time: record.type === 'regular' ? '17:00' : '00:00',   // Valores padrão para satisfy TypeScript
+    check_in: record.checkIn,
+    check_out: record.checkOut,
+    break_start: record.breakStart,
+    break_end: record.breakEnd,
+    type: record.type,
+    notes: record.notes
+  };
+};
+
+const convertToAppTimeRecord = (record: SupabaseTimeRecord): TimeRecord => {
+  return {
+    id: record.id,
+    professionalId: record.professional_id,
+    date: record.date,
+    checkIn: record.check_in,
+    checkOut: record.check_out,
+    breakStart: record.break_start,
+    breakEnd: record.break_end,
+    type: record.type,
+    notes: record.notes
+  };
+};
+
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -174,22 +279,7 @@ export const useAppStore = create<AppState>()(
           
           if (data) {
             // Converter os nomes das colunas de snake_case para camelCase
-            const formattedData = data.map(p => ({
-              id: p.id,
-              name: p.name,
-              role: p.role,
-              status: p.status,
-              startDate: p.start_date,
-              avatarUrl: p.avatar_url,
-              cpf: p.cpf,
-              birthDate: p.birth_date,
-              workHours: p.work_hours,
-              workCity: p.work_city,
-              salary: p.salary,
-              address: p.address,
-              phone: p.phone,
-              email: p.email
-            })) as Professional[];
+            const formattedData = data.map(p => convertToAppProfessional(p as SupabaseProfessional));
             
             set({ professionals: formattedData });
             
@@ -213,44 +303,21 @@ export const useAppStore = create<AppState>()(
         try {
           set({ isLoading: true });
           
-          // Converter camelCase para snake_case para o Supabase
-          const professionalData = {
-            name: professional.name,
-            role: professional.role,
-            status: professional.status,
-            start_date: professional.startDate,
-            avatar_url: professional.avatarUrl,
-            cpf: professional.cpf,
-            birth_date: professional.birthDate,
-            work_hours: professional.workHours,
-            work_city: professional.workCity,
-            salary: professional.salary,
-            address: professional.address,
-            phone: professional.phone,
-            email: professional.email
+          // Garantir que todos os campos obrigatórios estejam presentes
+          const professionalWithRequiredFields = {
+            ...professional,
+            email: professional.email || '' // Garantir que email nunca seja undefined
           };
+          
+          // Converter para o formato do Supabase (snake_case)
+          const professionalData = convertToSupabaseProfessional(professionalWithRequiredFields);
           
           const { data, error } = await professionalService.addProfessional(professionalData);
           if (error) throw error;
           
           if (data && data[0]) {
             // Converter de volta para camelCase
-            const newProfessional: Professional = {
-              id: data[0].id,
-              name: data[0].name,
-              role: data[0].role,
-              status: data[0].status,
-              startDate: data[0].start_date,
-              avatarUrl: data[0].avatar_url,
-              cpf: data[0].cpf,
-              birthDate: data[0].birth_date,
-              workHours: data[0].work_hours,
-              workCity: data[0].work_city,
-              salary: data[0].salary,
-              address: data[0].address,
-              phone: data[0].phone,
-              email: data[0].email
-            };
+            const newProfessional = convertToAppProfessional(data[0] as SupabaseProfessional);
             
             set((state) => ({
               professionals: [...state.professionals, newProfessional],
@@ -271,7 +338,7 @@ export const useAppStore = create<AppState>()(
           set({ isLoading: true });
           
           // Converter camelCase para snake_case para o Supabase
-          const updateData: any = {};
+          const updateData: Partial<SupabaseProfessional> = {};
           if (updates.name !== undefined) updateData.name = updates.name;
           if (updates.role !== undefined) updateData.role = updates.role;
           if (updates.status !== undefined) updateData.status = updates.status;
@@ -291,22 +358,7 @@ export const useAppStore = create<AppState>()(
           
           if (data && data[0]) {
             // Atualizar o estado local com os dados retornados
-            const updatedProfessional: Professional = {
-              id: data[0].id,
-              name: data[0].name,
-              role: data[0].role,
-              status: data[0].status,
-              startDate: data[0].start_date,
-              avatarUrl: data[0].avatar_url,
-              cpf: data[0].cpf,
-              birthDate: data[0].birth_date,
-              workHours: data[0].work_hours,
-              workCity: data[0].work_city,
-              salary: data[0].salary,
-              address: data[0].address,
-              phone: data[0].phone,
-              email: data[0].email
-            };
+            const updatedProfessional = convertToAppProfessional(data[0] as SupabaseProfessional);
             
             set((state) => ({
               professionals: state.professionals.map((p) => p.id === id ? updatedProfessional : p),
@@ -339,152 +391,125 @@ export const useAppStore = create<AppState>()(
         }
       },
       selectProfessional: (id) => {
-        set({ selectedProfessionalId: id })
+        set({ selectedProfessionalId: id });
         if (id) {
-          get().fetchTimeRecords(id)
+          void get().fetchTimeRecords(id);
         }
       },
 
       // Time Records
       timeRecords: [],
       fetchTimeRecords: async (professionalId) => {
-        const id = professionalId ?? get().selectedProfessionalId
-        if (!id) return
-        
-        const { data, error } = await timeRecordService.getTimeRecordsForProfessional(id)
-        if (error) {
-          console.error('Erro ao buscar registros de tempo:', error)
-          return
-        }
-        
-        if (data) {
-          // Converter os nomes das colunas de snake_case para camelCase
-          const formattedData = data.map(r => ({
-            id: r.id,
-            professionalId: r.professional_id,
-            date: r.date,
-            checkIn: r.check_in,
-            checkOut: r.check_out,
-            breakStart: r.break_start,
-            breakEnd: r.break_end,
-            type: r.type,
-            notes: r.notes
-          })) as TimeRecord[]
+        try {
+          const id = professionalId ?? get().selectedProfessionalId;
+          if (!id) return;
           
-          set({ timeRecords: formattedData })
+          const { data, error } = await timeRecordService.getTimeRecordsForProfessional(id);
+          if (error) {
+            console.error('Erro ao buscar registros de tempo:', error);
+            return;
+          }
+          
+          if (data) {
+            // Converter os nomes das colunas de snake_case para camelCase
+            const formattedData = data.map(r => convertToAppTimeRecord(r as SupabaseTimeRecord));
+            
+            set({ timeRecords: formattedData });
+          }
+        } catch (error) {
+          console.error('Erro ao buscar registros de tempo:', error);
         }
       },
       addTimeRecord: async (record) => {
-        // Converter camelCase para snake_case para o Supabase
-        const recordData = {
-          professional_id: record.professionalId,
-          date: record.date,
-          check_in: record.checkIn,
-          check_out: record.checkOut,
-          break_start: record.breakStart,
-          break_end: record.breakEnd,
-          type: record.type,
-          notes: record.notes
-        }
-        
-        const { data, error } = await timeRecordService.addTimeRecord(recordData)
-        if (error) {
-          console.error('Erro ao adicionar registro de tempo:', error)
-          return
-        }
-        
-        if (data && data[0]) {
-          // Converter de volta para camelCase
-          const newRecord: TimeRecord = {
-            id: data[0].id,
-            professionalId: data[0].professional_id,
-            date: data[0].date,
-            checkIn: data[0].check_in,
-            checkOut: data[0].check_out,
-            breakStart: data[0].break_start,
-            breakEnd: data[0].break_end,
-            type: data[0].type,
-            notes: data[0].notes
+        try {
+          // Converter camelCase para snake_case para o Supabase
+          const recordData = convertToSupabaseTimeRecord(record);
+          
+          const { data, error } = await timeRecordService.addTimeRecord(recordData);
+          if (error) {
+            console.error('Erro ao adicionar registro de tempo:', error);
+            return;
           }
           
-          set((state) => ({
-            timeRecords: [...state.timeRecords, newRecord],
-          }))
+          if (data && data[0]) {
+            // Converter de volta para camelCase
+            const newRecord = convertToAppTimeRecord(data[0] as SupabaseTimeRecord);
+            
+            set((state) => ({
+              timeRecords: [...state.timeRecords, newRecord],
+            }));
+          }
+        } catch (error) {
+          console.error('Erro ao adicionar registro de tempo:', error);
         }
       },
       updateTimeRecord: async (id, updates) => {
-        // Converter camelCase para snake_case para o Supabase
-        const updateData: any = {}
-        if (updates.professionalId !== undefined) updateData.professional_id = updates.professionalId
-        if (updates.date !== undefined) updateData.date = updates.date
-        if (updates.checkIn !== undefined) updateData.check_in = updates.checkIn
-        if (updates.checkOut !== undefined) updateData.check_out = updates.checkOut
-        if (updates.breakStart !== undefined) updateData.break_start = updates.breakStart
-        if (updates.breakEnd !== undefined) updateData.break_end = updates.breakEnd
-        if (updates.type !== undefined) updateData.type = updates.type
-        if (updates.notes !== undefined) updateData.notes = updates.notes
-        
-        const { data, error } = await timeRecordService.updateTimeRecord(id, updateData)
-        if (error) {
-          console.error('Erro ao atualizar registro de tempo:', error)
-          return
-        }
-        
-        if (data && data[0]) {
-          // Atualizar o estado local com os dados retornados
-          set((state) => ({
-            timeRecords: state.timeRecords.map((r) => 
-              r.id === id ? {
-                id: data[0].id,
-                professionalId: data[0].professional_id,
-                date: data[0].date,
-                checkIn: data[0].check_in,
-                checkOut: data[0].check_out,
-                breakStart: data[0].break_start,
-                breakEnd: data[0].break_end,
-                type: data[0].type,
-                notes: data[0].notes
-              } : r
-            ),
-          }))
+        try {
+          // Converter camelCase para snake_case para o Supabase
+          const updateData: Partial<SupabaseTimeRecord> = {}
+          if (updates.professionalId !== undefined) updateData.professional_id = updates.professionalId;
+          if (updates.date !== undefined) updateData.date = updates.date;
+          if (updates.checkIn !== undefined) updateData.check_in = updates.checkIn;
+          if (updates.checkOut !== undefined) updateData.check_out = updates.checkOut;
+          if (updates.breakStart !== undefined) updateData.break_start = updates.breakStart;
+          if (updates.breakEnd !== undefined) updateData.break_end = updates.breakEnd;
+          if (updates.type !== undefined) updateData.type = updates.type;
+          if (updates.notes !== undefined) updateData.notes = updates.notes;
+          
+          const { data, error } = await timeRecordService.updateTimeRecord(id, updateData);
+          if (error) {
+            console.error('Erro ao atualizar registro de tempo:', error);
+            return;
+          }
+          
+          if (data && data[0]) {
+            // Atualizar o estado local com os dados retornados
+            const updatedRecord = convertToAppTimeRecord(data[0] as SupabaseTimeRecord);
+            
+            set((state) => ({
+              timeRecords: state.timeRecords.map((r) => 
+                r.id === id ? updatedRecord : r
+              ),
+            }));
+          }
+        } catch (error) {
+          console.error('Erro ao atualizar registro de tempo:', error);
         }
       },
       removeTimeRecord: async (id) => {
-        const { error } = await timeRecordService.removeTimeRecord(id)
-        if (error) {
-          console.error('Erro ao remover registro de tempo:', error)
-          return
+        try {
+          const { error } = await timeRecordService.removeTimeRecord(id);
+          if (error) {
+            console.error('Erro ao remover registro de tempo:', error);
+            return;
+          }
+          
+          set((state) => ({
+            timeRecords: state.timeRecords.filter((r) => r.id !== id),
+          }));
+        } catch (error) {
+          console.error('Erro ao remover registro de tempo:', error);
         }
-        
-        set((state) => ({
-          timeRecords: state.timeRecords.filter((r) => r.id !== id),
-        }))
       },
       getTimeRecordsForProfessional: (professionalId) => {
-        return get().timeRecords.filter((r) => r.professionalId === professionalId)
+        return get().timeRecords.filter((r) => r.professionalId === professionalId);
       },
       getTimeRecordsForDate: async (date) => {
-        const { data, error } = await timeRecordService.getTimeRecordsForDate(date)
-        if (error) {
-          console.error('Erro ao buscar registros para a data:', error)
-          return
-        }
-        
-        if (data) {
-          // Converter os nomes das colunas de snake_case para camelCase
-          const formattedData = data.map(r => ({
-            id: r.id,
-            professionalId: r.professional_id,
-            date: r.date,
-            checkIn: r.check_in,
-            checkOut: r.check_out,
-            breakStart: r.break_start,
-            breakEnd: r.break_end,
-            type: r.type,
-            notes: r.notes
-          })) as TimeRecord[]
+        try {
+          const { data, error } = await timeRecordService.getTimeRecordsForDate(date);
+          if (error) {
+            console.error('Erro ao buscar registros para a data:', error);
+            return;
+          }
           
-          set({ timeRecords: formattedData })
+          if (data) {
+            // Converter os nomes das colunas de snake_case para camelCase
+            const formattedData = data.map(r => convertToAppTimeRecord(r as SupabaseTimeRecord));
+            
+            set({ timeRecords: formattedData });
+          }
+        } catch (error) {
+          console.error('Erro ao buscar registros para a data:', error);
         }
       },
     }),

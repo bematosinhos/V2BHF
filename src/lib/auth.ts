@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { Session } from '@supabase/supabase-js';
 
 // Fazer login
 export async function signIn(email: string, password: string) {
@@ -11,7 +12,7 @@ export async function signIn(email: string, password: string) {
 }
 
 // Cadastro
-export async function signUp(email: string, password: string, userData = {}) {
+export async function signUp(email: string, password: string, userData: Record<string, unknown> = {}) {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
@@ -25,16 +26,17 @@ export async function signUp(email: string, password: string, userData = {}) {
 
 // Logout
 export async function signOut() {
-  return await supabase.auth.signOut();
+  const { error } = await supabase.auth.signOut();
+  return { error };
 }
 
 // Obter usuário atual
-export function getCurrentUser() {
-  return supabase.auth.getUser();
+export async function getCurrentUser() {
+  return await supabase.auth.getUser();
 }
 
 // Escutar mudanças na autenticação
-export function onAuthStateChange(callback: (event: string, session: any) => void) {
+export function onAuthStateChange(callback: (event: string, session: Session | null) => void) {
   return supabase.auth.onAuthStateChange((event, session) => {
     callback(event, session);
   });
