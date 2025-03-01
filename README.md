@@ -153,3 +153,99 @@ Made with ❤️ by the community
 [⬆ Back to top](#-sbc-starter-kit)
 
 </div>
+
+# V2BHF - Sistema de Gestão de Profissionais Domésticos
+
+Este projeto é um sistema para gestão de profissionais domésticos, permitindo o registro de profissionais, controle de ponto e geração de relatórios.
+
+## Tecnologias Utilizadas
+
+- React
+- TypeScript
+- Tailwind CSS
+- Shadcn/UI
+- Zustand
+- Supabase
+- React Router
+- React Hook Form
+- Zod
+
+## Configuração do Supabase
+
+### 1. Criar uma conta no Supabase
+
+Acesse [supabase.com](https://supabase.com/) e crie uma conta gratuita.
+
+### 2. Criar um novo projeto
+
+- Após fazer login, clique em "New Project"
+- Escolha um nome para o projeto
+- Defina uma senha para o banco de dados
+- Escolha uma região próxima à sua localização
+- Clique em "Create new project"
+
+### 3. Configurar as variáveis de ambiente
+
+Crie um arquivo `.env` na raiz do projeto com as seguintes variáveis:
+
+```
+VITE_SUPABASE_URL=sua_url_do_supabase
+VITE_SUPABASE_ANON_KEY=sua_chave_anonima_do_supabase
+```
+
+Você pode encontrar essas informações no painel do Supabase em:
+- Project Settings > API > URL e anon/public key
+
+### 4. Configurar o banco de dados
+
+Você pode configurar o banco de dados de duas maneiras:
+
+#### Opção 1: Usando o SQL Editor no Supabase
+
+- No painel do Supabase, vá para SQL Editor
+- Crie uma nova query
+- Cole o conteúdo do arquivo `scripts/schema.sql`
+- Execute a query
+
+#### Opção 2: Usando o script de migração
+
+```bash
+# Instalar dependências
+npm install
+
+# Executar o script de migração
+npm run migrate:data
+```
+
+## Executando o Projeto
+
+```bash
+# Instalar dependências
+npm install
+
+# Iniciar o servidor de desenvolvimento
+npm run dev
+```
+
+## Autenticação
+
+O sistema utiliza autenticação via Supabase. Você pode configurar:
+
+1. **Email/Senha**: Ative no painel do Supabase em Authentication > Providers > Email
+2. **OAuth**: Configure provedores como Google e Microsoft em Authentication > Providers
+
+## Estrutura do Projeto
+
+- `/src/components`: Componentes reutilizáveis
+- `/src/pages`: Páginas da aplicação
+- `/src/lib`: Funções utilitárias e serviços
+- `/src/store`: Gerenciamento de estado com Zustand
+- `/scripts`: Scripts para migração e configuração do banco de dados
+
+## Funcionalidades
+
+- Cadastro e gestão de profissionais domésticos
+- Registro de ponto (entrada, saída, intervalo)
+- Dashboard com visão geral
+- Relatórios e exportação para PDF
+- Autenticação e controle de acesso

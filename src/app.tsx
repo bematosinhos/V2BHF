@@ -1,61 +1,172 @@
-import { Suspense, lazy } from 'react'
-import { BrowserRouter as Router, Routes, Route, RouteProps, Navigate } from 'react-router-dom'
+import { Suspense, lazy, useEffect } from 'react'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { ThemeProvider } from 'next-themes'
 import { Loader2 } from 'lucide-react'
 import { Toaster } from './components/ui/sonner'
+import { useAppStore } from './store'
+import { supabase } from './lib/supabase'
 
-const routes: RouteProps[] = [
-  {
-    path: '/',
-    element: <Navigate to="/auth/login" replace />,
-  },
-  {
-    path: '/auth/login',
-    Component: lazy(() => import('./pages/auth/login')),
-  },
-  {
-    path: '/dashboard',
-    Component: lazy(() => import('./pages/dashboard')),
-  },
-  {
-    path: '/professionals',
-    Component: lazy(() => import('./pages/professionals')),
-  },
-  {
-    path: '/professionals/:id',
-    Component: lazy(() => import('./pages/professionals/detail')),
-  },
-  {
-    path: '/schedule',
-    Component: lazy(() => import('./pages/schedule')),
-  },
-  {
-    path: '/register',
-    Component: lazy(() => import('./pages/register')),
-  },
-  {
-    path: '*',
-    element: <Navigate to="/dashboard" replace />,
-  },
-]
-
-const loading = (
+// Componente de loading para Suspense
+const Loading = () => (
   <div className="flex min-h-screen items-center justify-center">
     <Loader2 className="text-primary h-8 w-8 animate-spin" />
   </div>
 )
 
+// Componente para proteger rotas autenticadas
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const isAuthenticated = useAppStore((state) => state.isAuthenticated)
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/auth/login" replace />
+  }
+  
+  return <>{children}</>
+}
+
+// Componentes lazy
+const LoginPage = lazy(() => import('./pages/auth/login'))
+const RegisterPage = lazy(() => import('./pages/auth/register'))
+const AuthCallback = lazy(() => import('./pages/auth/callback'))
+const DashboardPage = lazy(() => import('./pages/dashboard'))
+const ProfessionalsPage = lazy(() => import('./pages/professionals'))
+const ProfessionalDetailPage = lazy(() => import('./pages/professionals/detail'))
+const SchedulePage = lazy(() => import('./pages/schedule'))
+const RegisterProfessionalPage = lazy(() => import('./pages/register'))
+
 function App() {
+  const login = useAppStore((state) => state.login)
+  const fetchProfessionals = useAppStore((state) => state.fetchProfessionals)
+  
+  // Verificar usuário atual ao iniciar a aplicação
+  useEffect(() => {
+    // Verificar se há uma sessão ativa
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession()
+      if (data.session) {
+        const { user } = data.session
+        // Simular login para definir o estado
+        await login(user.email || '', '') // password vazio, pois já temos a sessão
+        // Carregar dados iniciais após login
+        await fetchProfessionals()
+      }
+    }
+    
+    // Configurar listener para mudanças de autenticação
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_IN' && session) {
+          await login(session.user.email || '', '')
+          await fetchProfessionals()
+        }
+      }
+    )
+    
+    checkSession()
+    
+    // Limpar listener ao desmontar
+    return () => {
+      authListener.subscription.unsubscribe()
+    }
+  }, [login, fetchProfessionals])
+  
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <Router>
-        <Suspense fallback={loading}>
-          <Routes>
-            {routes.map((route, index) => (
-              <Route key={index} {...route} />
-            ))}
-          </Routes>
-        </Suspense>
+        <Routes>
+          {/* Rota inicial */}
+          <Route path="/" element={<Navigate to="/auth/login" replace />} />
+          
+          {/* Rota de login */}
+          <Route 
+            path="/auth/login" 
+            element={
+              <Suspense fallback={<Loading />}>
+                <LoginPage />
+              </Suspense>
+            } 
+          />
+          
+          {/* Rota de registro */}
+          <Route 
+            path="/auth/register" 
+            element={
+              <Suspense fallback={<Loading />}>
+                <RegisterPage />
+              </Suspense>
+            } 
+          />
+          
+          {/* Rota de callback para autenticação OAuth */}
+          <Route 
+            path="/auth/callback" 
+            element={
+              <Suspense fallback={<Loading />}>
+                <AuthCallback />
+              </Suspense>
+            } 
+          />
+          
+          {/* Rotas protegidas */}
+          <Route 
+            path="/dashboard" 
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<Loading />}>
+                  <DashboardPage />
+                </Suspense>
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/professionals" 
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<Loading />}>
+                  <ProfessionalsPage />
+                </Suspense>
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/professionals/:id" 
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<Loading />}>
+                  <ProfessionalDetailPage />
+                </Suspense>
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/schedule" 
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<Loading />}>
+                  <SchedulePage />
+                </Suspense>
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/register" 
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<Loading />}>
+                  <RegisterProfessionalPage />
+                </Suspense>
+              </ProtectedRoute>
+            } 
+          />
+          
+          {/* Rota não encontrada */}
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+        
         <Toaster />
       </Router>
     </ThemeProvider>

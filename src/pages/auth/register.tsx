@@ -10,7 +10,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -27,19 +26,26 @@ import { Eye, EyeOff } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { supabase } from '@/lib/supabase'
 
-const loginFormSchema = z.object({
-  email: z.string().email({ message: 'Email inválido' }),
-  password: z.string().min(6, { message: 'A senha deve ter pelo menos 6 caracteres' }),
-  rememberMe: z.boolean().default(false),
-})
+const registerFormSchema = z
+  .object({
+    email: z.string().email({ message: 'Email inválido' }),
+    password: z.string().min(6, { message: 'A senha deve ter pelo menos 6 caracteres' }),
+    confirmPassword: z.string().min(6, { message: 'A senha deve ter pelo menos 6 caracteres' }),
+    name: z.string().min(3, { message: 'O nome deve ter pelo menos 3 caracteres' }),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'As senhas não coincidem',
+    path: ['confirmPassword'],
+  })
 
-type LoginFormValues = z.infer<typeof loginFormSchema>
+type RegisterFormValues = z.infer<typeof registerFormSchema>
 
-const LoginPage: FC = () => {
+const RegisterPage: FC = () => {
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
-  const { login, isAuthenticated } = useAppStore()
+  const { isAuthenticated } = useAppStore()
 
   // Redirecionar para o dashboard se já estiver autenticado
   useEffect(() => {
@@ -48,41 +54,42 @@ const LoginPage: FC = () => {
     }
   }, [isAuthenticated, navigate])
 
-  const form = useForm<LoginFormValues>({
-    resolver: zodResolver(loginFormSchema),
+  const form = useForm<RegisterFormValues>({
+    resolver: zodResolver(registerFormSchema),
     defaultValues: {
       email: '',
       password: '',
-      rememberMe: false,
+      confirmPassword: '',
+      name: '',
     },
   })
 
-  async function onSubmit(data: LoginFormValues) {
+  async function onSubmit(data: RegisterFormValues) {
     setIsLoading(true)
 
     try {
-      // Autenticação usando Supabase
-      const { error: authError } = await supabase.auth.signInWithPassword({
+      // Criar usuário no Supabase
+      const { error: signUpError, data: signUpData } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
+        options: {
+          data: {
+            name: data.name,
+          },
+        },
       })
 
-      if (authError) {
-        toast.error(authError.message || 'Erro ao fazer login')
+      if (signUpError) {
+        toast.error(signUpError.message || 'Erro ao criar conta')
         return
       }
 
-      // A autenticação foi bem-sucedida, agora vamos atualizar nosso estado
-      const success = await login(data.email, data.password)
-
-      if (success) {
-        toast.success('Login realizado com sucesso!')
-        void navigate('/dashboard')
-      } else {
-        toast.error('Erro ao processar seu login')
-      }
+      toast.success('Conta criada com sucesso! Por favor, verifique seu email para confirmar sua conta.')
+      
+      // Redirecionar para a página de login após registro bem-sucedido
+      navigate('/auth/login')
     } catch (error) {
-      toast.error('Ocorreu um erro ao fazer login')
+      toast.error('Ocorreu um erro ao criar sua conta')
       console.error(error)
     } finally {
       setIsLoading(false)
@@ -142,8 +149,8 @@ const LoginPage: FC = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Login</CardTitle>
-            <CardDescription>Entre com suas credenciais para acessar o sistema.</CardDescription>
+            <CardTitle>Criar Conta</CardTitle>
+            <CardDescription>Preencha os dados abaixo para criar sua conta.</CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...form}>
@@ -153,6 +160,24 @@ const LoginPage: FC = () => {
                 }}
                 className="space-y-4"
               >
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nome Completo</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Seu nome completo"
+                          {...field}
+                          disabled={isLoading}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
                 <FormField
                   control={form.control}
                   name="email"
@@ -212,38 +237,53 @@ const LoginPage: FC = () => {
 
                 <FormField
                   control={form.control}
-                  name="rememberMe"
+                  name="confirmPassword"
                   render={({ field }) => (
-                    <FormItem className="flex flex-row items-center space-y-0 space-x-2">
+                    <FormItem>
+                      <FormLabel>Confirme a Senha</FormLabel>
                       <FormControl>
-                        <Checkbox
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                          disabled={isLoading}
-                        />
+                        <div className="relative">
+                          <Input
+                            placeholder="Confirme sua senha"
+                            type={showConfirmPassword ? 'text' : 'password'}
+                            {...field}
+                            disabled={isLoading}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="absolute top-0 right-0 h-full px-3"
+                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                            disabled={isLoading}
+                          >
+                            {showConfirmPassword ? (
+                              <EyeOff className="text-muted-foreground h-4 w-4" />
+                            ) : (
+                              <Eye className="text-muted-foreground h-4 w-4" />
+                            )}
+                            <span className="sr-only">
+                              {showConfirmPassword ? 'Esconder senha' : 'Mostrar senha'}
+                            </span>
+                          </Button>
+                        </div>
                       </FormControl>
-                      <FormLabel className="text-sm font-normal">Lembrar de mim</FormLabel>
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
 
                 <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? 'Entrando...' : 'Entrar'}
+                  {isLoading ? 'Criando conta...' : 'Criar Conta'}
                 </Button>
               </form>
             </Form>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
             <div className="w-full text-center">
-              <Link to="/auth/forgot-password" className="text-sm text-blue-600 hover:underline">
-                Esqueceu sua senha?
-              </Link>
-            </div>
-            
-            <div className="w-full text-center">
-              <span className="text-sm text-gray-600">Não tem uma conta?{' '}</span>
-              <Link to="/auth/register" className="text-sm text-blue-600 hover:underline">
-                Criar conta
+              <span className="text-sm text-gray-600">Já tem uma conta?{' '}</span>
+              <Link to="/auth/login" className="text-sm text-blue-600 hover:underline">
+                Faça login
               </Link>
             </div>
 
@@ -276,7 +316,7 @@ const LoginPage: FC = () => {
             </div>
 
             <div className="text-muted-foreground mt-4 text-center text-sm">
-              Ao continuar, você concorda com nossos{' '}
+              Ao criar sua conta, você concorda com nossos{' '}
               <Link to="/terms" className="hover:text-primary underline underline-offset-4">
                 Termos de Serviço
               </Link>{' '}
@@ -299,4 +339,4 @@ const LoginPage: FC = () => {
   )
 }
 
-export default LoginPage
+export default RegisterPage 

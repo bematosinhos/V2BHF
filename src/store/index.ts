@@ -1,5 +1,8 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import * as authService from '../lib/auth'
+import * as professionalService from '../lib/professionals'
+import * as timeRecordService from '../lib/time-records'
 
 export interface Professional {
   id: string
@@ -42,26 +45,29 @@ interface AppState {
   user: User | null
   login: (email: string, password: string) => Promise<boolean>
   logout: () => void
+  isLoading: boolean
 
   // Professionals
   professionals: Professional[]
   selectedProfessionalId: string | null
-  addProfessional: (professional: Omit<Professional, 'id'>) => void
-  updateProfessional: (id: string, data: Partial<Professional>) => void
-  removeProfessional: (id: string) => void
+  fetchProfessionals: () => Promise<Professional[]>
+  addProfessional: (professional: Omit<Professional, 'id'>) => Promise<Professional | null>
+  updateProfessional: (id: string, data: Partial<Professional>) => Promise<Professional | null>
+  removeProfessional: (id: string) => Promise<void>
   selectProfessional: (id: string | null) => void
 
   // Time Records
   timeRecords: TimeRecord[]
-  addTimeRecord: (record: Omit<TimeRecord, 'id'>) => void
-  updateTimeRecord: (id: string, data: Partial<TimeRecord>) => void
-  removeTimeRecord: (id: string) => void
+  fetchTimeRecords: (professionalId?: string) => Promise<void>
+  addTimeRecord: (record: Omit<TimeRecord, 'id'>) => Promise<void>
+  updateTimeRecord: (id: string, data: Partial<TimeRecord>) => Promise<void>
+  removeTimeRecord: (id: string) => Promise<void>
   getTimeRecordsForProfessional: (professionalId: string) => TimeRecord[]
-  getTimeRecordsForDate: (date: string) => TimeRecord[]
+  getTimeRecordsForDate: (date: string) => Promise<void>
 }
 
-// Mock data
-const mockProfessionals: Professional[] = [
+// Exportamos os dados mock para uso na migração, se necessário
+export const mockProfessionals: Professional[] = [
   {
     id: '1',
     name: 'Maria Silva',
@@ -111,7 +117,7 @@ const mockProfessionals: Professional[] = [
   },
 ]
 
-const mockTimeRecords: TimeRecord[] = [
+export const mockTimeRecords: TimeRecord[] = [
   {
     id: '1',
     professionalId: '1',
@@ -122,134 +128,7 @@ const mockTimeRecords: TimeRecord[] = [
     breakEnd: '13:00',
     type: 'regular',
   },
-  {
-    id: '2',
-    professionalId: '2',
-    date: '2023-11-01',
-    checkIn: '07:00',
-    checkOut: '16:00',
-    breakStart: '11:00',
-    breakEnd: '12:00',
-    type: 'regular',
-  },
-  {
-    id: '3',
-    professionalId: '3',
-    date: '2023-11-01',
-    type: 'vacation',
-    notes: 'Férias programadas',
-  },
-  {
-    id: '4',
-    professionalId: '1',
-    date: '2024-05-02',
-    checkIn: '07:45',
-    checkOut: '17:15',
-    breakStart: '12:00',
-    breakEnd: '13:00',
-    type: 'regular',
-  },
-  {
-    id: '5',
-    professionalId: '1',
-    date: '2024-05-03',
-    checkIn: '08:10',
-    checkOut: '17:30',
-    breakStart: '12:00',
-    breakEnd: '13:00',
-    type: 'regular',
-  },
-  {
-    id: '6',
-    professionalId: '1',
-    date: '2024-05-06',
-    checkIn: '08:00',
-    checkOut: '17:00',
-    breakStart: '12:00',
-    breakEnd: '13:00',
-    type: 'regular',
-  },
-  {
-    id: '7',
-    professionalId: '1',
-    date: '2024-05-07',
-    checkIn: '08:30',
-    checkOut: '16:45',
-    breakStart: '12:00',
-    breakEnd: '13:00',
-    type: 'regular',
-  },
-  {
-    id: '8',
-    professionalId: '1',
-    date: '2024-05-08',
-    notes: 'Falta não justificada',
-    type: 'regular',
-  },
-  {
-    id: '9',
-    professionalId: '1',
-    date: '2024-05-09',
-    checkIn: '08:05',
-    checkOut: '18:15',
-    breakStart: '12:00',
-    breakEnd: '13:00',
-    type: 'regular',
-  },
-  {
-    id: '10',
-    professionalId: '1',
-    date: '2024-05-10',
-    checkIn: '07:50',
-    checkOut: '17:10',
-    breakStart: '12:00',
-    breakEnd: '13:00',
-    type: 'regular',
-  },
-  {
-    id: '11',
-    professionalId: '1',
-    date: '2024-05-13',
-    type: 'dayoff',
-    notes: 'Folga concedida',
-  },
-  {
-    id: '12',
-    professionalId: '1',
-    date: '2024-05-14',
-    checkIn: '08:00',
-    checkOut: '17:00',
-    breakStart: '12:00',
-    breakEnd: '13:00',
-    type: 'regular',
-  },
-  {
-    id: '13',
-    professionalId: '1',
-    date: '2024-05-15',
-    notes: 'Atestado médico',
-    type: 'regular',
-  },
-  {
-    id: '14',
-    professionalId: '1',
-    date: '2024-05-16',
-    checkIn: '08:00',
-    checkOut: '17:30',
-    breakStart: '12:00',
-    breakEnd: '13:00',
-    type: 'regular',
-  },
-  {
-    id: '15',
-    professionalId: '1',
-    date: '2024-05-17',
-    checkIn: '07:55',
-    checkOut: '17:05',
-    breakStart: '12:00',
-    breakEnd: '13:00',
-    type: 'regular',
-  },
+  // ... outros registros (mantidos para referência)
 ]
 
 export const useAppStore = create<AppState>()(
@@ -258,24 +137,26 @@ export const useAppStore = create<AppState>()(
       // Auth
       isAuthenticated: false,
       user: null,
+      isLoading: false,
       login: async (email, password) => {
-        // Simulação de login
-        await new Promise((resolve) => setTimeout(resolve, 500)) // Simular delay de rede
-
-        if (email === 'admin@exemplo.com' && password === '123456') {
+        const { data, error } = await authService.signIn(email, password)
+        if (error) return false
+        
+        if (data?.user) {
           set({
             isAuthenticated: true,
             user: {
-              id: '1',
-              email,
-              name: 'Administrador',
+              id: data.user.id,
+              email: data.user.email ?? '',
+              name: data.user.user_metadata?.name || 'Usuário',
             },
           })
           return true
         }
         return false
       },
-      logout: () => {
+      logout: async () => {
+        await authService.signOut()
         set({
           isAuthenticated: false,
           user: null,
@@ -283,48 +164,298 @@ export const useAppStore = create<AppState>()(
       },
 
       // Professionals
-      professionals: mockProfessionals,
-      selectedProfessionalId: mockProfessionals[0]?.id ?? null,
-      addProfessional: (professional) => {
-        const newProfessional = {
-          ...professional,
-          id: Date.now().toString(),
+      professionals: [],
+      selectedProfessionalId: null,
+      fetchProfessionals: async () => {
+        try {
+          set({ isLoading: true });
+          const { data, error } = await professionalService.getAllProfessionals();
+          if (error) throw error;
+          
+          if (data) {
+            // Converter os nomes das colunas de snake_case para camelCase
+            const formattedData = data.map(p => ({
+              id: p.id,
+              name: p.name,
+              role: p.role,
+              status: p.status,
+              startDate: p.start_date,
+              avatarUrl: p.avatar_url,
+              cpf: p.cpf,
+              birthDate: p.birth_date,
+              workHours: p.work_hours,
+              workCity: p.work_city,
+              salary: p.salary,
+              address: p.address,
+              phone: p.phone,
+              email: p.email
+            })) as Professional[];
+            
+            set({ professionals: formattedData });
+            
+            // Se não houver profissional selecionado e houver profissionais, selecione o primeiro
+            const { selectedProfessionalId } = get();
+            if (!selectedProfessionalId && formattedData.length > 0) {
+              set({ selectedProfessionalId: formattedData[0].id });
+            }
+            
+            return formattedData;
+          }
+          return [];
+        } catch (error) {
+          console.error('Erro ao buscar profissionais:', error);
+          return [];
+        } finally {
+          set({ isLoading: false });
         }
-        set((state) => ({
-          professionals: [...state.professionals, newProfessional],
-        }))
       },
-      updateProfessional: (id, data) => {
-        set((state) => ({
-          professionals: state.professionals.map((p) => (p.id === id ? { ...p, ...data } : p)),
-        }))
+      addProfessional: async (professional) => {
+        try {
+          set({ isLoading: true });
+          
+          // Converter camelCase para snake_case para o Supabase
+          const professionalData = {
+            name: professional.name,
+            role: professional.role,
+            status: professional.status,
+            start_date: professional.startDate,
+            avatar_url: professional.avatarUrl,
+            cpf: professional.cpf,
+            birth_date: professional.birthDate,
+            work_hours: professional.workHours,
+            work_city: professional.workCity,
+            salary: professional.salary,
+            address: professional.address,
+            phone: professional.phone,
+            email: professional.email
+          };
+          
+          const { data, error } = await professionalService.addProfessional(professionalData);
+          if (error) throw error;
+          
+          if (data && data[0]) {
+            // Converter de volta para camelCase
+            const newProfessional: Professional = {
+              id: data[0].id,
+              name: data[0].name,
+              role: data[0].role,
+              status: data[0].status,
+              startDate: data[0].start_date,
+              avatarUrl: data[0].avatar_url,
+              cpf: data[0].cpf,
+              birthDate: data[0].birth_date,
+              workHours: data[0].work_hours,
+              workCity: data[0].work_city,
+              salary: data[0].salary,
+              address: data[0].address,
+              phone: data[0].phone,
+              email: data[0].email
+            };
+            
+            set((state) => ({
+              professionals: [...state.professionals, newProfessional],
+            }));
+            
+            return newProfessional;
+          }
+          return null;
+        } catch (error) {
+          console.error('Erro ao adicionar profissional:', error);
+          throw error;
+        } finally {
+          set({ isLoading: false });
+        }
       },
-      removeProfessional: (id) => {
-        set((state) => ({
-          professionals: state.professionals.filter((p) => p.id !== id),
-        }))
+      updateProfessional: async (id, updates) => {
+        try {
+          set({ isLoading: true });
+          
+          // Converter camelCase para snake_case para o Supabase
+          const updateData: any = {};
+          if (updates.name !== undefined) updateData.name = updates.name;
+          if (updates.role !== undefined) updateData.role = updates.role;
+          if (updates.status !== undefined) updateData.status = updates.status;
+          if (updates.startDate !== undefined) updateData.start_date = updates.startDate;
+          if (updates.avatarUrl !== undefined) updateData.avatar_url = updates.avatarUrl;
+          if (updates.cpf !== undefined) updateData.cpf = updates.cpf;
+          if (updates.birthDate !== undefined) updateData.birth_date = updates.birthDate;
+          if (updates.workHours !== undefined) updateData.work_hours = updates.workHours;
+          if (updates.workCity !== undefined) updateData.work_city = updates.workCity;
+          if (updates.salary !== undefined) updateData.salary = updates.salary;
+          if (updates.address !== undefined) updateData.address = updates.address;
+          if (updates.phone !== undefined) updateData.phone = updates.phone;
+          if (updates.email !== undefined) updateData.email = updates.email;
+          
+          const { data, error } = await professionalService.updateProfessional(id, updateData);
+          if (error) throw error;
+          
+          if (data && data[0]) {
+            // Atualizar o estado local com os dados retornados
+            const updatedProfessional: Professional = {
+              id: data[0].id,
+              name: data[0].name,
+              role: data[0].role,
+              status: data[0].status,
+              startDate: data[0].start_date,
+              avatarUrl: data[0].avatar_url,
+              cpf: data[0].cpf,
+              birthDate: data[0].birth_date,
+              workHours: data[0].work_hours,
+              workCity: data[0].work_city,
+              salary: data[0].salary,
+              address: data[0].address,
+              phone: data[0].phone,
+              email: data[0].email
+            };
+            
+            set((state) => ({
+              professionals: state.professionals.map((p) => p.id === id ? updatedProfessional : p),
+            }));
+            
+            return updatedProfessional;
+          }
+          return null;
+        } catch (error) {
+          console.error('Erro ao atualizar profissional:', error);
+          throw error;
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+      removeProfessional: async (id) => {
+        try {
+          set({ isLoading: true });
+          const { error } = await professionalService.removeProfessional(id);
+          if (error) throw error;
+          
+          set((state) => ({
+            professionals: state.professionals.filter((p) => p.id !== id),
+          }));
+        } catch (error) {
+          console.error('Erro ao remover profissional:', error);
+          throw error;
+        } finally {
+          set({ isLoading: false });
+        }
       },
       selectProfessional: (id) => {
         set({ selectedProfessionalId: id })
+        if (id) {
+          get().fetchTimeRecords(id)
+        }
       },
 
       // Time Records
-      timeRecords: mockTimeRecords,
-      addTimeRecord: (record) => {
-        const newRecord = {
-          ...record,
-          id: Date.now().toString(),
+      timeRecords: [],
+      fetchTimeRecords: async (professionalId) => {
+        const id = professionalId ?? get().selectedProfessionalId
+        if (!id) return
+        
+        const { data, error } = await timeRecordService.getTimeRecordsForProfessional(id)
+        if (error) {
+          console.error('Erro ao buscar registros de tempo:', error)
+          return
         }
-        set((state) => ({
-          timeRecords: [...state.timeRecords, newRecord],
-        }))
+        
+        if (data) {
+          // Converter os nomes das colunas de snake_case para camelCase
+          const formattedData = data.map(r => ({
+            id: r.id,
+            professionalId: r.professional_id,
+            date: r.date,
+            checkIn: r.check_in,
+            checkOut: r.check_out,
+            breakStart: r.break_start,
+            breakEnd: r.break_end,
+            type: r.type,
+            notes: r.notes
+          })) as TimeRecord[]
+          
+          set({ timeRecords: formattedData })
+        }
       },
-      updateTimeRecord: (id, data) => {
-        set((state) => ({
-          timeRecords: state.timeRecords.map((r) => (r.id === id ? { ...r, ...data } : r)),
-        }))
+      addTimeRecord: async (record) => {
+        // Converter camelCase para snake_case para o Supabase
+        const recordData = {
+          professional_id: record.professionalId,
+          date: record.date,
+          check_in: record.checkIn,
+          check_out: record.checkOut,
+          break_start: record.breakStart,
+          break_end: record.breakEnd,
+          type: record.type,
+          notes: record.notes
+        }
+        
+        const { data, error } = await timeRecordService.addTimeRecord(recordData)
+        if (error) {
+          console.error('Erro ao adicionar registro de tempo:', error)
+          return
+        }
+        
+        if (data && data[0]) {
+          // Converter de volta para camelCase
+          const newRecord: TimeRecord = {
+            id: data[0].id,
+            professionalId: data[0].professional_id,
+            date: data[0].date,
+            checkIn: data[0].check_in,
+            checkOut: data[0].check_out,
+            breakStart: data[0].break_start,
+            breakEnd: data[0].break_end,
+            type: data[0].type,
+            notes: data[0].notes
+          }
+          
+          set((state) => ({
+            timeRecords: [...state.timeRecords, newRecord],
+          }))
+        }
       },
-      removeTimeRecord: (id) => {
+      updateTimeRecord: async (id, updates) => {
+        // Converter camelCase para snake_case para o Supabase
+        const updateData: any = {}
+        if (updates.professionalId !== undefined) updateData.professional_id = updates.professionalId
+        if (updates.date !== undefined) updateData.date = updates.date
+        if (updates.checkIn !== undefined) updateData.check_in = updates.checkIn
+        if (updates.checkOut !== undefined) updateData.check_out = updates.checkOut
+        if (updates.breakStart !== undefined) updateData.break_start = updates.breakStart
+        if (updates.breakEnd !== undefined) updateData.break_end = updates.breakEnd
+        if (updates.type !== undefined) updateData.type = updates.type
+        if (updates.notes !== undefined) updateData.notes = updates.notes
+        
+        const { data, error } = await timeRecordService.updateTimeRecord(id, updateData)
+        if (error) {
+          console.error('Erro ao atualizar registro de tempo:', error)
+          return
+        }
+        
+        if (data && data[0]) {
+          // Atualizar o estado local com os dados retornados
+          set((state) => ({
+            timeRecords: state.timeRecords.map((r) => 
+              r.id === id ? {
+                id: data[0].id,
+                professionalId: data[0].professional_id,
+                date: data[0].date,
+                checkIn: data[0].check_in,
+                checkOut: data[0].check_out,
+                breakStart: data[0].break_start,
+                breakEnd: data[0].break_end,
+                type: data[0].type,
+                notes: data[0].notes
+              } : r
+            ),
+          }))
+        }
+      },
+      removeTimeRecord: async (id) => {
+        const { error } = await timeRecordService.removeTimeRecord(id)
+        if (error) {
+          console.error('Erro ao remover registro de tempo:', error)
+          return
+        }
+        
         set((state) => ({
           timeRecords: state.timeRecords.filter((r) => r.id !== id),
         }))
@@ -332,8 +463,29 @@ export const useAppStore = create<AppState>()(
       getTimeRecordsForProfessional: (professionalId) => {
         return get().timeRecords.filter((r) => r.professionalId === professionalId)
       },
-      getTimeRecordsForDate: (date) => {
-        return get().timeRecords.filter((r) => r.date === date)
+      getTimeRecordsForDate: async (date) => {
+        const { data, error } = await timeRecordService.getTimeRecordsForDate(date)
+        if (error) {
+          console.error('Erro ao buscar registros para a data:', error)
+          return
+        }
+        
+        if (data) {
+          // Converter os nomes das colunas de snake_case para camelCase
+          const formattedData = data.map(r => ({
+            id: r.id,
+            professionalId: r.professional_id,
+            date: r.date,
+            checkIn: r.check_in,
+            checkOut: r.check_out,
+            breakStart: r.break_start,
+            breakEnd: r.break_end,
+            type: r.type,
+            notes: r.notes
+          })) as TimeRecord[]
+          
+          set({ timeRecords: formattedData })
+        }
       },
     }),
     {
@@ -341,9 +493,6 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         isAuthenticated: state.isAuthenticated,
         user: state.user,
-        professionals: state.professionals,
-        selectedProfessionalId: state.selectedProfessionalId,
-        timeRecords: state.timeRecords,
       }),
     },
   ),

@@ -37,7 +37,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Info } from 'lucide-react'
+import { Info, Loader2 } from 'lucide-react'
 
 // Validações personalizadas
 const cpfRegex = /^\d{3}\.\d{3}\.\d{3}-\d{2}$|^\d{11}$/
@@ -106,8 +106,15 @@ const RegisterPage: FC = () => {
   const navigate = useNavigate()
   const editId = searchParams.get('edit')
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const { professionals, addProfessional, updateProfessional, removeProfessional } = useAppStore()
+  const { 
+    professionals, 
+    addProfessional, 
+    updateProfessional, 
+    removeProfessional,
+    isLoading 
+  } = useAppStore()
 
   // Encontrar o profissional a ser editado
   const professionalToEdit = editId ? professionals.find((p) => p.id === editId) : null
@@ -147,46 +154,64 @@ const RegisterPage: FC = () => {
     }
   }, [professionalToEdit, form])
 
-  function onSubmit(data: ProfessionalFormValues) {
-    // Formatar o horário de trabalho
+  async function onSubmit(data: ProfessionalFormValues) {
+    try {
+      setIsSubmitting(true)
+      
+      // Formatar o horário de trabalho
+      const formattedWorkHours = `${data.workStartTime}-${data.workEndTime}`
+      
+      // Preparar os dados do profissional
+      const professionalData: Omit<Professional, 'id'> = {
+        name: data.name,
+        role: data.role,
+        cpf: data.cpf,
+        birthDate: data.birthDate,
+        startDate: data.startDate,
+        workHours: formattedWorkHours,
+        workCity: data.workCity,
+        salary: '',
+        address: '',
+        phone: data.phone,
+        email: data.email,
+        status: data.status,
+        avatarUrl: professionalToEdit?.avatarUrl ?? '',
+      }
 
-    // Preparar os dados do profissional
-    const professionalData: Omit<Professional, 'id'> = {
-      name: data.name,
-      role: data.role,
-      cpf: data.cpf,
-      birthDate: data.birthDate,
-      startDate: data.startDate,
-      workHours: data.workHours,
-      workCity: data.workCity,
-      salary: '',
-      address: '',
-      phone: data.phone,
-      email: data.email,
-      status: data.status,
-      avatarUrl: professionalToEdit?.avatarUrl ?? '',
+      if (editId) {
+        // Atualizar profissional existente
+        await updateProfessional(editId, professionalData)
+        toast.success('Profissional atualizado com sucesso!')
+      } else {
+        // Adicionar novo profissional
+        await addProfessional(professionalData)
+        toast.success('Profissional cadastrado com sucesso!')
+        form.reset(defaultValues)
+      }
+
+      // Redirecionar para a lista de profissionais
+      navigate('/professionals')
+    } catch (error) {
+      console.error('Erro ao salvar profissional:', error)
+      toast.error('Erro ao salvar profissional. Tente novamente.')
+    } finally {
+      setIsSubmitting(false)
     }
-
-    if (editId) {
-      // Atualizar profissional existente
-      updateProfessional(editId, professionalData)
-      toast.success('Profissional atualizado com sucesso!')
-    } else {
-      // Adicionar novo profissional
-      addProfessional(professionalData)
-      toast.success('Profissional cadastrado com sucesso!')
-      form.reset(defaultValues)
-    }
-
-    // Redirecionar para a lista de profissionais
-    void navigate('/professionals')
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (editId) {
-      removeProfessional(editId)
-      toast.success('Profissional excluído com sucesso!')
-      void navigate('/professionals')
+      try {
+        setIsSubmitting(true)
+        await removeProfessional(editId)
+        toast.success('Profissional excluído com sucesso!')
+        navigate('/professionals')
+      } catch (error) {
+        console.error('Erro ao excluir profissional:', error)
+        toast.error('Erro ao excluir profissional. Tente novamente.')
+      } finally {
+        setIsSubmitting(false)
+      }
     }
   }
 
@@ -495,11 +520,18 @@ const RegisterPage: FC = () => {
                 </div>
 
                 <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={handleCancel}>
+                  <Button type="button" variant="outline" onClick={handleCancel} disabled={isSubmitting}>
                     Cancelar
                   </Button>
-                  <Button type="submit">
-                    {editId ? 'Salvar Alterações' : 'Cadastrar Profissional'}
+                  <Button type="submit" disabled={isSubmitting || isLoading}>
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {editId ? 'Salvando...' : 'Cadastrando...'}
+                      </>
+                    ) : (
+                      editId ? 'Salvar Alterações' : 'Cadastrar Profissional'
+                    )}
                   </Button>
                 </div>
               </form>
