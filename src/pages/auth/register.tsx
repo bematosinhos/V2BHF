@@ -25,7 +25,6 @@ import { toast } from 'sonner'
 import { Eye, EyeOff } from 'lucide-react'
 import { useAppStore } from '@/store'
 import { supabase } from '@/lib/supabase'
-import { AuthError } from '@supabase/supabase-js'
 
 const registerFormSchema = z
   .object({
@@ -51,7 +50,7 @@ const RegisterPage: FC = () => {
   // Redirecionar para o dashboard se já estiver autenticado
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/dashboard')
+      void navigate('/dashboard')
     }
   }, [isAuthenticated, navigate])
 
@@ -70,7 +69,7 @@ const RegisterPage: FC = () => {
 
     try {
       // Criar usuário no Supabase
-      const { error: signUpError, data: signUpData } = await supabase.auth.signUp({
+      const { error: signUpError } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
         options: {
@@ -86,12 +85,15 @@ const RegisterPage: FC = () => {
         return
       }
 
-      toast.success('Conta criada com sucesso! Por favor, verifique seu email para confirmar sua conta.')
-      
+      toast.success(
+        'Conta criada com sucesso! Por favor, verifique seu email para confirmar sua conta.',
+      )
+
       // Redirecionar para a página de login após registro bem-sucedido
-      navigate('/auth/login')
+      void navigate('/auth/login')
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro ao criar sua conta';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Ocorreu um erro ao criar sua conta'
       toast.error(errorMessage)
       console.error(error)
     } finally {
@@ -114,7 +116,8 @@ const RegisterPage: FC = () => {
         toast.error(error.message || 'Erro ao fazer login com Google')
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro ao fazer login com Google';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Ocorreu um erro ao fazer login com Google'
       toast.error(errorMessage)
       console.error(error)
     } finally {
@@ -137,7 +140,8 @@ const RegisterPage: FC = () => {
         toast.error(error.message || 'Erro ao fazer login com Microsoft')
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro ao fazer login com Microsoft';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Ocorreu um erro ao fazer login com Microsoft'
       toast.error(errorMessage)
       console.error(error)
     } finally {
@@ -161,8 +165,8 @@ const RegisterPage: FC = () => {
             <Form {...form}>
               <form
                 onSubmit={(e) => {
-                  e.preventDefault();
-                  void form.handleSubmit(onSubmit)(e);
+                  e.preventDefault()
+                  void form.handleSubmit(onSubmit)(e)
                 }}
                 className="space-y-4"
               >
@@ -173,11 +177,7 @@ const RegisterPage: FC = () => {
                     <FormItem>
                       <FormLabel>Nome Completo</FormLabel>
                       <FormControl>
-                        <Input
-                          placeholder="Seu nome completo"
-                          {...field}
-                          disabled={isLoading}
-                        />
+                        <Input placeholder="Seu nome completo" {...field} disabled={isLoading} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -287,7 +287,7 @@ const RegisterPage: FC = () => {
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
             <div className="w-full text-center">
-              <span className="text-sm text-gray-600">Já tem uma conta?{' '}</span>
+              <span className="text-sm text-gray-600">Já tem uma conta? </span>
               <Link to="/auth/login" className="text-sm text-blue-600 hover:underline">
                 Faça login
               </Link>
@@ -303,17 +303,17 @@ const RegisterPage: FC = () => {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <Button 
-                variant="outline" 
-                className="w-full" 
+              <Button
+                variant="outline"
+                className="w-full"
                 disabled={isLoading}
                 onClick={() => void signInWithGoogle()}
               >
                 Google
               </Button>
-              <Button 
-                variant="outline" 
-                className="w-full" 
+              <Button
+                variant="outline"
+                className="w-full"
                 disabled={isLoading}
                 onClick={() => void signInWithMicrosoft()}
               >
@@ -345,4 +345,4 @@ const RegisterPage: FC = () => {
   )
 }
 
-export default RegisterPage 
+export default RegisterPage
