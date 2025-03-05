@@ -4,7 +4,6 @@ import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { useAppStore } from '@/store'
-import { Session } from '@supabase/supabase-js'
 
 const AuthCallback: FC = () => {
   const [loading, setLoading] = useState(true)
@@ -14,11 +13,11 @@ const AuthCallback: FC = () => {
   const fetchProfessionals = useAppStore((state) => state.fetchProfessionals)
 
   useEffect(() => {
-    const handleAuthCallback = async () => {
+    const handleAuthCallback = async (): Promise<void> => {
       try {
         // Obter a sessão atual
         const { data, error: sessionError } = await supabase.auth.getSession()
-        const session = data.session as Session | null
+        const session = data.session
         
         if (sessionError) {
           setError(sessionError.message)
@@ -34,11 +33,11 @@ const AuthCallback: FC = () => {
         
         // Usuário está autenticado, atualize o estado global e redirecione
         try {
-          await login(session.user.email || '', '')
+          await login(session.user.email ?? '', '')
           await fetchProfessionals()
           
           toast.success('Login realizado com sucesso!')
-          navigate('/dashboard')
+          void navigate('/dashboard')
         } catch (loginError) {
           const errorMessage = loginError instanceof Error ? loginError.message : 'Erro ao processar login';
           setError(errorMessage)
@@ -69,7 +68,9 @@ const AuthCallback: FC = () => {
           <h1 className="text-2xl font-bold text-red-600">Erro de Autenticação</h1>
           <p className="mt-2 text-gray-600">{error}</p>
           <button
-            onClick={() => navigate('/auth/login')}
+            onClick={() => {
+              void navigate('/auth/login');
+            }}
             className="mt-4 rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
           >
             Voltar para Login

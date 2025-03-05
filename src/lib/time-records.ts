@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { PostgrestError } from '@supabase/supabase-js';
 
 // Definindo a interface para o tipo TimeRecord
 export interface TimeRecord {
@@ -12,8 +13,19 @@ export interface TimeRecord {
   updated_at?: string;
 }
 
+// Tipo de retorno para operações com TimeRecords
+export interface TimeRecordResponse {
+  data: TimeRecord[] | null;
+  error: PostgrestError | null;
+}
+
+// Tipo de retorno para operações de remoção
+export interface TimeRecordDeleteResponse {
+  error: PostgrestError | null;
+}
+
 // Obter registros de tempo de um profissional
-export async function getTimeRecordsForProfessional(professionalId: string) {
+export async function getTimeRecordsForProfessional(professionalId: string): Promise<TimeRecordResponse> {
   const { data, error } = await supabase
     .from('time_records')
     .select('*')
@@ -24,7 +36,7 @@ export async function getTimeRecordsForProfessional(professionalId: string) {
 }
 
 // Obter registros para uma data específica
-export async function getTimeRecordsForDate(date: string) {
+export async function getTimeRecordsForDate(date: string): Promise<TimeRecordResponse> {
   const { data, error } = await supabase
     .from('time_records')
     .select('*')
@@ -34,7 +46,9 @@ export async function getTimeRecordsForDate(date: string) {
 }
 
 // Adicionar um registro de tempo
-export async function addTimeRecord(recordData: Omit<TimeRecord, 'id' | 'created_at' | 'updated_at'>) {
+export async function addTimeRecord(
+  recordData: Omit<TimeRecord, 'id' | 'created_at' | 'updated_at'>
+): Promise<TimeRecordResponse> {
   const { data, error } = await supabase
     .from('time_records')
     .insert(recordData)
@@ -44,7 +58,10 @@ export async function addTimeRecord(recordData: Omit<TimeRecord, 'id' | 'created
 }
 
 // Atualizar um registro de tempo
-export async function updateTimeRecord(id: string, updates: Partial<Omit<TimeRecord, 'id' | 'created_at' | 'updated_at'>>) {
+export async function updateTimeRecord(
+  id: string, 
+  updates: Partial<Omit<TimeRecord, 'id' | 'created_at' | 'updated_at'>>
+): Promise<TimeRecordResponse> {
   const { data, error } = await supabase
     .from('time_records')
     .update(updates)
@@ -55,7 +72,7 @@ export async function updateTimeRecord(id: string, updates: Partial<Omit<TimeRec
 }
 
 // Remover um registro de tempo
-export async function removeTimeRecord(id: string) {
+export async function removeTimeRecord(id: string): Promise<TimeRecordDeleteResponse> {
   const { error } = await supabase
     .from('time_records')
     .delete()

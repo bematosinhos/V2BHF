@@ -53,7 +53,7 @@ export const DashboardLayout: FC<PropsWithChildren> = ({ children }) => {
 
   const handleLogout = () => {
     logout()
-    void navigate('/auth/login')
+    void navigate('/')
   }
 
   const selectedProfessional = professionals.find((p) => p.id === selectedProfessionalId) ?? null

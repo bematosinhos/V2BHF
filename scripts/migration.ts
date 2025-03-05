@@ -7,7 +7,7 @@ import { mockProfessionals, mockTimeRecords } from '../src/store'
  */
 
 // Função para criar as tabelas
-async function createTables() {
+async function createTables(): Promise<boolean> {
   console.log('Criando tabelas no Supabase...')
 
   // Cria tabela de profissionais
@@ -29,7 +29,7 @@ async function createTables() {
 }
 
 // Função para migrar profissionais
-async function migrateProfessionals() {
+async function migrateProfessionals(): Promise<boolean> {
   console.log('Migrando profissionais...')
 
   for (const professional of mockProfessionals) {
@@ -60,7 +60,7 @@ async function migrateProfessionals() {
 }
 
 // Função para migrar registros de tempo
-async function migrateTimeRecords() {
+async function migrateTimeRecords(): Promise<boolean> {
   console.log('Migrando registros de tempo...')
 
   for (const record of mockTimeRecords) {
@@ -86,7 +86,7 @@ async function migrateTimeRecords() {
 }
 
 // Função principal
-async function main() {
+async function main(): Promise<void> {
   console.log('Iniciando migração de dados para o Supabase...')
 
   // As tabelas já devem estar criadas via SQL Editor no Supabase
@@ -110,6 +110,6 @@ async function main() {
 }
 
 // Executa o script
-main().catch(err => {
+void main().catch(err => {
   console.error('Erro ao executar migração:', err)
 }) 

@@ -24,7 +24,19 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>
 }
 
+// Componente para rotas de autenticação que devem redirecionar para o dashboard quando já autenticado
+const AuthRoute = ({ children }: { children: React.ReactNode }) => {
+  const isAuthenticated = useAppStore((state) => state.isAuthenticated)
+  
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />
+  }
+  
+  return <>{children}</>
+}
+
 // Componentes lazy
+const LandingPage = lazy(() => import('./pages/landing'))
 const LoginPage = lazy(() => import('./pages/auth/login'))
 const RegisterPage = lazy(() => import('./pages/auth/register'))
 const AuthCallback = lazy(() => import('./pages/auth/callback'))
@@ -54,7 +66,7 @@ function App() {
           const { user } = data.session
           try {
             // Simular login para definir o estado
-            await login(user.email || '', '') // password vazio, pois já temos a sessão
+            await login(user.email ?? '', '') // password vazio, pois já temos a sessão
             // Carregar dados iniciais após login
             await fetchProfessionals()
           } catch (loginError) {
@@ -71,11 +83,18 @@ function App() {
       async (event, session) => {
         if (event === 'SIGNED_IN' && session) {
           try {
-            await login(session.user.email || '', '')
+            await login(session.user.email ?? '', '')
             await fetchProfessionals()
           } catch (error) {
             console.error('Erro ao processar login após mudança de autenticação:', error)
           }
+        }
+        
+        // Adicionar evento para quando o usuário deslogar
+        if (event === 'SIGNED_OUT') {
+          // O estado global já será atualizado na store
+          // Não precisamos fazer nada aqui, a navegação para a landing
+          // ocorrerá normalmente devido às rotas protegidas
         }
       }
     )
@@ -92,15 +111,24 @@ function App() {
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <Router>
         <Routes>
-          {/* Rota inicial */}
-          <Route path="/" element={<Navigate to="/auth/login" replace />} />
+          {/* Rota inicial - Landing Page */}
+          <Route 
+            path="/" 
+            element={
+              <Suspense fallback={<Loading />}>
+                <LandingPage />
+              </Suspense>
+            } 
+          />
           
           {/* Rota de login */}
           <Route 
             path="/auth/login" 
             element={
               <Suspense fallback={<Loading />}>
-                <LoginPage />
+                <AuthRoute>
+                  <LoginPage />
+                </AuthRoute>
               </Suspense>
             } 
           />
@@ -110,7 +138,9 @@ function App() {
             path="/auth/register" 
             element={
               <Suspense fallback={<Loading />}>
-                <RegisterPage />
+                <AuthRoute>
+                  <RegisterPage />
+                </AuthRoute>
               </Suspense>
             } 
           />
@@ -182,7 +212,7 @@ function App() {
           />
           
           {/* Rota não encontrada */}
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         
         <Toaster />

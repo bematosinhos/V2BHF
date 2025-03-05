@@ -184,7 +184,7 @@ const convertToSupabaseProfessional = (professional: Omit<Professional, 'id'>): 
     salary: professional.salary,
     address: professional.address,
     phone: professional.phone,
-    email: professional.email || '' // Garantir que email nunca seja undefined
+    email: professional.email ?? ''
   };
 };
 
@@ -253,15 +253,15 @@ export const useAppStore = create<AppState>()(
             user: {
               id: data.user.id,
               email: data.user.email ?? '',
-              name: data.user.user_metadata?.name || 'Usuário',
-            },
+              name: data.user.user_metadata?.name ?? 'Usuário',
+            } as User,
           })
           return true
         }
         return false
       },
-      logout: async () => {
-        await authService.signOut()
+      logout: () => {
+        void authService.signOut()
         set({
           isAuthenticated: false,
           user: null,
@@ -306,7 +306,7 @@ export const useAppStore = create<AppState>()(
           // Garantir que todos os campos obrigatórios estejam presentes
           const professionalWithRequiredFields = {
             ...professional,
-            email: professional.email || '' // Garantir que email nunca seja undefined
+            email: professional.email ?? ''
           };
           
           // Converter para o formato do Supabase (snake_case)
@@ -361,7 +361,7 @@ export const useAppStore = create<AppState>()(
             const updatedProfessional = convertToAppProfessional(data[0] as SupabaseProfessional);
             
             set((state) => ({
-              professionals: state.professionals.map((p) => p.id === id ? updatedProfessional : p),
+              professionals: state.professionals.map((p) => (p.id === id ? updatedProfessional : p)),
             }));
             
             return updatedProfessional;

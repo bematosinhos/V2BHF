@@ -1,8 +1,17 @@
 import { supabase } from './supabase';
-import { Session } from '@supabase/supabase-js';
+import { 
+  Session, 
+  User, 
+  AuthError, 
+  SignInWithPasswordCredentials,
+  SignUpWithPasswordCredentials
+} from '@supabase/supabase-js';
 
 // Fazer login
-export async function signIn(email: string, password: string) {
+export async function signIn(email: string, password: string): Promise<{
+  data: { user: User | null; session: Session | null };
+  error: AuthError | null;
+}> {
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
@@ -12,7 +21,14 @@ export async function signIn(email: string, password: string) {
 }
 
 // Cadastro
-export async function signUp(email: string, password: string, userData: Record<string, unknown> = {}) {
+export async function signUp(
+  email: string, 
+  password: string, 
+  userData: Record<string, unknown> = {}
+): Promise<{
+  data: { user: User | null; session: Session | null };
+  error: AuthError | null;
+}> {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
@@ -25,18 +41,23 @@ export async function signUp(email: string, password: string, userData: Record<s
 }
 
 // Logout
-export async function signOut() {
+export async function signOut(): Promise<{ error: AuthError | null }> {
   const { error } = await supabase.auth.signOut();
   return { error };
 }
 
 // Obter usuário atual
-export async function getCurrentUser() {
+export async function getCurrentUser(): Promise<{ 
+  data: { user: User | null };
+  error: AuthError | null;
+}> {
   return await supabase.auth.getUser();
 }
 
 // Escutar mudanças na autenticação
-export function onAuthStateChange(callback: (event: string, session: Session | null) => void) {
+export function onAuthStateChange(callback: (event: string, session: Session | null) => void): { 
+  data: { subscription: { unsubscribe: () => void } } 
+} {
   return supabase.auth.onAuthStateChange((event, session) => {
     callback(event, session);
   });

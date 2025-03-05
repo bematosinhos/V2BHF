@@ -1,4 +1,4 @@
-import { FC, useState, useEffect } from 'react'
+import { FC, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -39,14 +39,7 @@ const LoginPage: FC = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
-  const { login, isAuthenticated } = useAppStore()
-
-  // Redirecionar para o dashboard se já estiver autenticado
-  useEffect(() => {
-    if (isAuthenticated) {
-      void navigate('/dashboard')
-    }
-  }, [isAuthenticated, navigate])
+  const { login } = useAppStore()
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginFormSchema),
@@ -261,7 +254,7 @@ const LoginPage: FC = () => {
                 variant="outline" 
                 className="w-full" 
                 disabled={isLoading}
-                onClick={signInWithGoogle}
+                onClick={() => void signInWithGoogle()}
               >
                 Google
               </Button>
@@ -269,7 +262,7 @@ const LoginPage: FC = () => {
                 variant="outline" 
                 className="w-full" 
                 disabled={isLoading}
-                onClick={signInWithMicrosoft}
+                onClick={() => void signInWithMicrosoft()}
               >
                 Microsoft
               </Button>

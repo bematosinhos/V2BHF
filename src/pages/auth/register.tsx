@@ -1,4 +1,4 @@
-import { FC, useState, useEffect } from 'react'
+import { FC, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -45,14 +45,6 @@ const RegisterPage: FC = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
-  const { isAuthenticated } = useAppStore()
-
-  // Redirecionar para o dashboard se já estiver autenticado
-  useEffect(() => {
-    if (isAuthenticated) {
-      void navigate('/dashboard')
-    }
-  }, [isAuthenticated, navigate])
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerFormSchema),
@@ -64,11 +56,11 @@ const RegisterPage: FC = () => {
     },
   })
 
-  const onSubmit = async (data: RegisterFormValues) => {
-    setIsLoading(true)
-
+  const onSubmit = async (data: RegisterFormValues): Promise<void> => {
     try {
-      // Criar usuário no Supabase
+      setIsLoading(true)
+
+      // Registrar usuário via Supabase
       const { error: signUpError } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
@@ -102,7 +94,7 @@ const RegisterPage: FC = () => {
   }
 
   // Função para fazer login com Google
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (): Promise<void> => {
     try {
       setIsLoading(true)
       const { error } = await supabase.auth.signInWithOAuth({
@@ -126,7 +118,7 @@ const RegisterPage: FC = () => {
   }
 
   // Função para fazer login com Microsoft
-  const signInWithMicrosoft = async () => {
+  const signInWithMicrosoft = async (): Promise<void> => {
     try {
       setIsLoading(true)
       const { error } = await supabase.auth.signInWithOAuth({
