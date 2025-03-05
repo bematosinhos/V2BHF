@@ -23,7 +23,6 @@ import {
 } from '@/components/ui/form'
 import { toast } from 'sonner'
 import { Eye, EyeOff } from 'lucide-react'
-import { useAppStore } from '@/store'
 import { supabase } from '@/lib/supabase'
 
 const registerFormSchema = z

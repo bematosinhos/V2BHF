@@ -1,33 +1,30 @@
-import { supabase } from './supabase';
-import { 
-  Session, 
-  User, 
-  AuthError, 
-  SignInWithPasswordCredentials,
-  SignUpWithPasswordCredentials
-} from '@supabase/supabase-js';
+import { supabase } from './supabase'
+import { AuthError, Session, User } from '@supabase/supabase-js'
 
 // Fazer login
-export async function signIn(email: string, password: string): Promise<{
-  data: { user: User | null; session: Session | null };
-  error: AuthError | null;
+export async function signIn(
+  email: string,
+  password: string,
+): Promise<{
+  data: { user: User | null; session: Session | null }
+  error: AuthError | null
 }> {
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
-  });
-  
-  return { data, error };
+  })
+
+  return { data, error }
 }
 
 // Cadastro
 export async function signUp(
-  email: string, 
-  password: string, 
-  userData: Record<string, unknown> = {}
+  email: string,
+  password: string,
+  userData: Record<string, unknown> = {},
 ): Promise<{
-  data: { user: User | null; session: Session | null };
-  error: AuthError | null;
+  data: { user: User | null; session: Session | null }
+  error: AuthError | null
 }> {
   const { data, error } = await supabase.auth.signUp({
     email,
@@ -35,30 +32,30 @@ export async function signUp(
     options: {
       data: userData,
     },
-  });
-  
-  return { data, error };
+  })
+
+  return { data, error }
 }
 
 // Logout
 export async function signOut(): Promise<{ error: AuthError | null }> {
-  const { error } = await supabase.auth.signOut();
-  return { error };
+  const { error } = await supabase.auth.signOut()
+  return { error }
 }
 
 // Obter usuário atual
-export async function getCurrentUser(): Promise<{ 
-  data: { user: User | null };
-  error: AuthError | null;
+export async function getCurrentUser(): Promise<{
+  data: { user: User | null }
+  error: AuthError | null
 }> {
-  return await supabase.auth.getUser();
+  return await supabase.auth.getUser()
 }
 
 // Escutar mudanças na autenticação
-export function onAuthStateChange(callback: (event: string, session: Session | null) => void): { 
-  data: { subscription: { unsubscribe: () => void } } 
+export function onAuthStateChange(callback: (event: string, session: Session | null) => void): {
+  data: { subscription: { unsubscribe: () => void } }
 } {
   return supabase.auth.onAuthStateChange((event, session) => {
-    callback(event, session);
-  });
-} 
+    callback(event, session)
+  })
+}

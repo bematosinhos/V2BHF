@@ -447,7 +447,7 @@ const ProfessionalDetailPage: FC = () => {
                           <AlertDialogCancel>Cancelar</AlertDialogCancel>
                           <AlertDialogAction
                             onClick={() => {
-                              removeProfessional(professional.id)
+                              void removeProfessional(professional.id)
                               toast.success('Profissional removido com sucesso!')
                               handleNavigate('/professionals')
                             }}

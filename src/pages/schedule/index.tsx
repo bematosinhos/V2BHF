@@ -381,9 +381,9 @@ const SchedulePage: FC = () => {
     }
 
     if (existingRecord) {
-      updateTimeRecord(existingRecord.id, recordUpdate)
+      void updateTimeRecord(existingRecord.id, recordUpdate)
     } else if (selectedProfessionalId) {
-      addTimeRecord({
+      void addTimeRecord({
         professionalId: selectedProfessionalId,
         date: dateString,
         checkIn: recordUpdate.checkIn ?? '',
@@ -448,27 +448,27 @@ const SchedulePage: FC = () => {
     if (existingRecord) {
       // Se for campo de fim e o início não estiver definido, definir valor padrão para início
       if (!isStart && !existingRecord.checkIn) {
-        updateTimeRecord(existingRecord.id, {
+        void updateTimeRecord(existingRecord.id, {
           checkIn: defaultCheckIn,
           checkOut: value,
         })
       }
       // Se for campo de início e o fim não estiver definido, definir valor padrão para fim
       else if (isStart && !existingRecord.checkOut) {
-        updateTimeRecord(existingRecord.id, {
+        void updateTimeRecord(existingRecord.id, {
           checkIn: value,
           checkOut: defaultCheckOut,
         })
       }
       // Caso normal: apenas atualizar o campo específico
       else {
-        updateTimeRecord(existingRecord.id, {
+        void updateTimeRecord(existingRecord.id, {
           [isStart ? 'checkIn' : 'checkOut']: value,
         })
       }
     } else if (selectedProfessionalId) {
       // Ao criar novo registro, definir ambos valores, usando padrão para o campo não fornecido
-      addTimeRecord({
+      void addTimeRecord({
         professionalId: selectedProfessionalId,
         date: dateString,
         checkIn: isStart ? value : defaultCheckIn,

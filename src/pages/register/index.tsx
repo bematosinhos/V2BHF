@@ -108,13 +108,8 @@ const RegisterPage: FC = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const { 
-    professionals, 
-    addProfessional, 
-    updateProfessional, 
-    removeProfessional,
-    isLoading 
-  } = useAppStore()
+  const { professionals, addProfessional, updateProfessional, removeProfessional, isLoading } =
+    useAppStore()
 
   // Encontrar o profissional a ser editado
   const professionalToEdit = editId ? professionals.find((p) => p.id === editId) : null
@@ -157,10 +152,10 @@ const RegisterPage: FC = () => {
   async function onSubmit(data: ProfessionalFormValues) {
     try {
       setIsSubmitting(true)
-      
+
       // Formatar o horário de trabalho
       const formattedWorkHours = `${data.workStartTime}-${data.workEndTime}`
-      
+
       // Preparar os dados do profissional
       const professionalData: Omit<Professional, 'id'> = {
         name: data.name,
@@ -190,7 +185,7 @@ const RegisterPage: FC = () => {
       }
 
       // Redirecionar para a lista de profissionais
-      navigate('/professionals')
+      void navigate('/professionals')
     } catch (error) {
       console.error('Erro ao salvar profissional:', error)
       toast.error('Erro ao salvar profissional. Tente novamente.')
@@ -205,7 +200,7 @@ const RegisterPage: FC = () => {
         setIsSubmitting(true)
         await removeProfessional(editId)
         toast.success('Profissional excluído com sucesso!')
-        navigate('/professionals')
+        void navigate('/professionals')
       } catch (error) {
         console.error('Erro ao excluir profissional:', error)
         toast.error('Erro ao excluir profissional. Tente novamente.')
@@ -249,7 +244,9 @@ const RegisterPage: FC = () => {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDelete}>Confirmar</AlertDialogAction>
+                  <AlertDialogAction onClick={() => void handleDelete()}>
+                    Confirmar
+                  </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
@@ -520,7 +517,12 @@ const RegisterPage: FC = () => {
                 </div>
 
                 <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={handleCancel} disabled={isSubmitting}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleCancel}
+                    disabled={isSubmitting}
+                  >
                     Cancelar
                   </Button>
                   <Button type="submit" disabled={isSubmitting || isLoading}>
@@ -529,8 +531,10 @@ const RegisterPage: FC = () => {
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         {editId ? 'Salvando...' : 'Cadastrando...'}
                       </>
+                    ) : editId ? (
+                      'Salvar Alterações'
                     ) : (
-                      editId ? 'Salvar Alterações' : 'Cadastrar Profissional'
+                      'Cadastrar Profissional'
                     )}
                   </Button>
                 </div>
