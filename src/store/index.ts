@@ -84,6 +84,7 @@ interface AppState {
   login: (email: string, password: string) => Promise<boolean>
   logout: () => void
   isLoading: boolean
+  setAuthenticated: (value: boolean) => void
 
   // Professionals
   professionals: Professional[]
@@ -247,6 +248,7 @@ export const useAppStore = create<AppState>()(
       isAuthenticated: false,
       user: null,
       isLoading: false,
+      setAuthenticated: (value) => set({ isAuthenticated: value }),
       login: async (email, password) => {
         const { data, error } = await authService.signIn(email, password)
         if (error) return false

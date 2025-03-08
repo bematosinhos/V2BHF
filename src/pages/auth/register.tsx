@@ -24,6 +24,7 @@ import {
 import { toast } from 'sonner'
 import { Eye, EyeOff } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { FcGoogle } from 'react-icons/fc'
 
 const registerFormSchema = z
   .object({
@@ -92,49 +93,52 @@ const RegisterPage: FC = () => {
     }
   }
 
-  // Função para fazer login com Google
+  // Função para fazer login com Google seguindo as melhores práticas do Supabase
   const signInWithGoogle = async (): Promise<void> => {
     try {
       setIsLoading(true)
+
+      // URL de callback absoluta para garantir redirecionamento correto
+      const redirectTo = `${window.location.origin}/auth/callback`
+
+      console.log('Iniciando autenticação Google com redirecionamento para:', redirectTo)
+
+      // Configurações para o login com o Google
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo,
+          queryParams: {
+            // Opções adicionais para o Google OAuth
+            access_type: 'offline',
+            prompt: 'consent',
+          },
         },
       })
 
       if (error) {
-        toast.error(error.message || 'Erro ao fazer login com Google')
+        console.error('Erro ao iniciar login com Google:', error)
+
+        // Mensagens mais específicas baseadas no tipo de erro
+        if (error.message.includes('popup')) {
+          toast.error(
+            'O pop-up de autenticação foi bloqueado. Por favor, permita pop-ups para este site.',
+          )
+        } else if (error.message.includes('network')) {
+          toast.error('Problema de conexão. Verifique sua internet e tente novamente.')
+        } else {
+          toast.error(error.message || 'Erro ao fazer login com Google')
+        }
+        return
       }
+
+      // Para depuração - o usuário já será redirecionado pelo Supabase neste ponto
+      console.log('Iniciando redirecionamento para autenticação Google...')
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Ocorreu um erro ao fazer login com Google'
       toast.error(errorMessage)
-      console.error(error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // Função para fazer login com Microsoft
-  const signInWithMicrosoft = async (): Promise<void> => {
-    try {
-      setIsLoading(true)
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'azure',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-        },
-      })
-
-      if (error) {
-        toast.error(error.message || 'Erro ao fazer login com Microsoft')
-      }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Ocorreu um erro ao fazer login com Microsoft'
-      toast.error(errorMessage)
-      console.error(error)
+      console.error('Exceção durante login com Google:', error)
     } finally {
       setIsLoading(false)
     }
@@ -293,22 +297,15 @@ const RegisterPage: FC = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="w-full">
               <Button
                 variant="outline"
-                className="w-full"
+                className="flex w-full items-center justify-center gap-2"
                 disabled={isLoading}
                 onClick={() => void signInWithGoogle()}
               >
-                Google
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full"
-                disabled={isLoading}
-                onClick={() => void signInWithMicrosoft()}
-              >
-                Microsoft
+                <FcGoogle className="h-5 w-5" />
+                <span>Continuar com Google</span>
               </Button>
             </div>
 
