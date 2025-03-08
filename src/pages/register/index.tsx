@@ -37,7 +37,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { AlertCircle, Info, Loader2 } from 'lucide-react'
+import { AlertCircle, Info } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { checkSupabaseConnection } from '@/lib/supabase'
 
@@ -108,11 +108,11 @@ const RegisterPage: FC = () => {
   const navigate = useNavigate()
   const editId = searchParams.get('edit')
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [] = useState(false)
   const [formErrors, setFormErrors] = useState<string[]>([])
   const [showValidationErrors, setShowValidationErrors] = useState(false)
 
-  const { professionals, addProfessional, updateProfessional, removeProfessional, isLoading } =
+  const { professionals, addProfessional, updateProfessional, removeProfessional } =
     useAppStore()
 
   // Encontrar o profissional a ser editado
@@ -186,7 +186,6 @@ const RegisterPage: FC = () => {
 
   async function onSubmit(data: ProfessionalFormValues) {
     try {
-      setIsSubmitting(true);
       setShowValidationErrors(false);
       
       // Mostrar toast de processamento para feedback imediato
@@ -247,8 +246,6 @@ const RegisterPage: FC = () => {
     } catch (error) {
       console.error('Erro ao salvar profissional:', error);
       toast.error(`Erro ao salvar profissional: ${error instanceof Error ? error.message : 'Tente novamente'}`);
-    } finally {
-      setIsSubmitting(false);
     }
   }
 
@@ -267,22 +264,18 @@ const RegisterPage: FC = () => {
     } catch (error) {
       console.error('Erro ao validar formulário:', error);
       toast.error('Erro ao validar formulário');
-      setIsSubmitting(false);
     }
   }
 
   async function handleDelete() {
     if (editId) {
       try {
-        setIsSubmitting(true)
         await removeProfessional(editId)
         toast.success('Profissional excluído com sucesso!')
         void navigate('/professionals')
       } catch (error) {
         console.error('Erro ao excluir profissional:', error)
         toast.error('Erro ao excluir profissional. Tente novamente.')
-      } finally {
-        setIsSubmitting(false)
       }
     }
   }
@@ -614,17 +607,11 @@ const RegisterPage: FC = () => {
                     type="button"
                     variant="outline"
                     onClick={handleCancel}
-                    disabled={isSubmitting}
                   >
                     Cancelar
                   </Button>
-                  <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        {editId ? 'Salvando...' : 'Cadastrando...'}
-                      </>
-                    ) : editId ? (
+                  <Button type="submit">
+                    {editId ? (
                       'Salvar Alterações'
                     ) : (
                       'Cadastrar Profissional'

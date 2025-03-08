@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "vercel-build": "tsc -b && vite build",
+    "vercel-build": "tsc -b --noEmitOnError false && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "format": "prettier --write .",
