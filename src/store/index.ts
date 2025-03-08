@@ -103,6 +103,9 @@ interface AppState {
   removeTimeRecord: (id: string) => Promise<void>
   getTimeRecordsForProfessional: (professionalId: string) => TimeRecord[]
   getTimeRecordsForDate: (date: string) => Promise<void>
+
+  // Obter profissionais pendentes do armazenamento local
+  getPendingProfessionals: () => {pendingId: string; timestamp: string; professionalData: Omit<Professional, 'id'>}[]
 }
 
 // Exportamos os dados mock para uso na migração, se necessário
@@ -519,6 +522,17 @@ export const useAppStore = create<AppState>()(
           }
         } catch (error) {
           console.error('Erro ao buscar registros para a data:', error)
+        }
+      },
+
+      // Obter profissionais pendentes do armazenamento local
+      getPendingProfessionals: () => {
+        try {
+          const pendingString = localStorage.getItem('bhf_pending_professionals') || '[]';
+          return JSON.parse(pendingString);
+        } catch (error) {
+          console.error('Erro ao recuperar profissionais pendentes:', error);
+          return [];
         }
       },
     }),

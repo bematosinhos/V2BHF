@@ -206,6 +206,101 @@ const RegisterPage: FC = () => {
     return false;
   };
 
+  // Função para salvar um profissional localmente quando há problemas de conexão
+  const saveProfessionalLocally = (data: Omit<Professional, 'id'>) => {
+    try {
+      // Obter profissionais pendentes salvos
+      const pendingString = localStorage.getItem('bhf_pending_professionals') || '[]';
+      const pendingProfessionals = JSON.parse(pendingString);
+      
+      // Adicionar o novo profissional à lista com timestamp
+      pendingProfessionals.push({
+        ...data,
+        pendingId: `pending_${Date.now()}`,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Salvar a lista atualizada
+      localStorage.setItem('bhf_pending_professionals', JSON.stringify(pendingProfessionals));
+      
+      console.log('Profissional salvo localmente para sincronização posterior');
+      return true;
+    } catch (error) {
+      console.error('Erro ao salvar profissional localmente:', error);
+      return false;
+    }
+  };
+
+  // Função para tentar sincronizar profissionais pendentes
+  const syncPendingProfessionals = async () => {
+    try {
+      const pendingString = localStorage.getItem('bhf_pending_professionals') || '[]';
+      const pendingProfessionals = JSON.parse(pendingString);
+      
+      if (pendingProfessionals.length === 0) return;
+      
+      console.log(`Tentando sincronizar ${pendingProfessionals.length} profissionais pendentes`);
+      
+      // Usamos um contador para saber quantos foram sincronizados com sucesso
+      let syncedCount = 0;
+      const stillPending = [];
+      
+      for (const professional of pendingProfessionals) {
+        try {
+          const { pendingId, timestamp, ...professionalData } = professional;
+          
+          // Verificar duplicatas antes de cadastrar
+          const duplicateCheck = professionals.some(
+            p => p.cpf === professionalData.cpf || p.email === professionalData.email
+          );
+          
+          if (duplicateCheck) {
+            console.log(`Profissional pendente ignorado (duplicado): ${professionalData.name}`);
+            syncedCount++;
+            continue;
+          }
+          
+          // Tentar adicionar ao Supabase
+          const result = await addProfessional(professionalData);
+          if (result) {
+            console.log(`Profissional sincronizado com sucesso: ${professionalData.name}`);
+            syncedCount++;
+          } else {
+            stillPending.push(professional);
+          }
+        } catch (error) {
+          console.error('Erro ao sincronizar profissional pendente:', error);
+          stillPending.push(professional);
+        }
+      }
+      
+      // Atualizar a lista de pendentes
+      if (stillPending.length > 0) {
+        localStorage.setItem('bhf_pending_professionals', JSON.stringify(stillPending));
+      } else {
+        localStorage.removeItem('bhf_pending_professionals');
+      }
+      
+      // Atualizar a lista de profissionais
+      await fetchProfessionals();
+      
+      // Notificar o usuário se algum foi sincronizado
+      if (syncedCount > 0) {
+        toast.success(`${syncedCount} profissionais pendentes foram sincronizados com sucesso!`);
+      }
+      
+      return syncedCount;
+    } catch (error) {
+      console.error('Erro ao sincronizar profissionais pendentes:', error);
+      return 0;
+    }
+  };
+  
+  // Tentar sincronizar profissionais pendentes ao carregar a página
+  useEffect(() => {
+    void syncPendingProfessionals();
+  }, []);
+
   async function onSubmit(data: ProfessionalFormValues) {
     // Verifica duplicatas antes de tentar cadastrar
     const hasDuplicates = await checkDuplicates(data);
@@ -213,15 +308,7 @@ const RegisterPage: FC = () => {
       return;
     }
     
-    // Iniciar contador para timeout
-    const submitTimeout = setTimeout(() => {
-      setIsSubmitting(false);
-      toast.error('O cadastro demorou muito tempo. Tente novamente.', {
-        id: 'saving-professional'
-      });
-      console.error('Timeout ao cadastrar profissional - operação excedeu 40 segundos');
-    }, 40000); // Aumentado para 40 segundos
-    
+    // Sem timeout - usaremos uma abordagem diferente
     setIsSubmitting(true);
     toast.loading(editId ? 'Salvando alterações...' : 'Cadastrando profissional...', {
       id: 'saving-professional'
@@ -248,91 +335,98 @@ const RegisterPage: FC = () => {
         avatarUrl: professionalToEdit?.avatarUrl ?? '',
       }
 
-      console.log('Iniciando operação no Supabase:', editId ? 'Atualização' : 'Cadastro');
+      console.log('Iniciando operação:', editId ? 'Atualização' : 'Cadastro');
       
-      // Função para tentar a operação com retry
-      const attemptOperation = async (attempt = 1, maxAttempts = 3) => {
-        try {
-          console.log(`Tentativa ${attempt} de ${maxAttempts}`);
+      // Definir um timeout curto para a operação
+      const operationPromise = new Promise<{success: boolean; online: boolean; data?: any; saved?: boolean}>((resolve) => {
+        // Para edição, tentamos normalmente
+        if (editId) {
+          updateProfessional(editId, professionalData)
+            .then(updatedProfessional => {
+              if (updatedProfessional) {
+                resolve({ success: true, online: true, data: updatedProfessional });
+              } else {
+                resolve({ success: false, online: true });
+              }
+            })
+            .catch(error => {
+              console.error('Erro ao atualizar profissional:', error);
+              resolve({ success: false, online: true });
+            });
+        } else {
+          // Para novo cadastro, tentamos com um timeout curto
+          const timeoutId = setTimeout(() => {
+            // Se atingir o timeout, salvamos localmente
+            const savedLocally = saveProfessionalLocally(professionalData);
+            resolve({ success: true, online: false, saved: savedLocally });
+          }, 5000); // Esperamos apenas 5 segundos antes de considerar um problema de conexão
           
-          if (editId) {
-            // Atualizar profissional existente
-            console.log('Atualizando profissional com ID:', editId);
-            const updatedProfessional = await updateProfessional(editId, professionalData);
-            if (!updatedProfessional) {
-              throw new Error('Não foi possível atualizar o profissional. Verifique os dados e tente novamente.');
-            }
-            console.log('Profissional atualizado com sucesso');
-            return { success: true, data: updatedProfessional };
-          } else {
-            // Adicionar novo profissional
-            console.log('Adicionando novo profissional');
-            const newProfessional = await addProfessional(professionalData);
-            if (!newProfessional) {
-              throw new Error('Não foi possível cadastrar o profissional. Verifique os dados e tente novamente.');
-            }
-            console.log('Profissional cadastrado com sucesso');
-            return { success: true, data: newProfessional };
-          }
-        } catch (error) {
-          console.error(`Erro na tentativa ${attempt}:`, error);
-          
-          if (attempt < maxAttempts) {
-            // Esperar um pouco antes de tentar novamente (exponential backoff)
-            const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-            console.log(`Aguardando ${waitTime}ms antes da próxima tentativa...`);
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-            return attemptOperation(attempt + 1, maxAttempts);
-          }
-          
-          // Se chegou aqui, todas as tentativas falharam
-          throw error;
+          // Tentativa normal
+          addProfessional(professionalData)
+            .then(newProfessional => {
+              clearTimeout(timeoutId);
+              if (newProfessional) {
+                resolve({ success: true, online: true, data: newProfessional });
+              } else {
+                // Se falhar online, tentar salvar localmente
+                const savedLocally = saveProfessionalLocally(professionalData);
+                resolve({ success: savedLocally, online: false, saved: savedLocally });
+              }
+            })
+            .catch(error => {
+              clearTimeout(timeoutId);
+              console.error('Erro ao adicionar profissional:', error);
+              // Se ocorrer erro, tenta salvar localmente
+              const savedLocally = saveProfessionalLocally(professionalData);
+              resolve({ success: savedLocally, online: false, saved: savedLocally });
+            });
         }
-      };
-      
-      // Tentar a operação com retry
-      const result = await attemptOperation();
-      
-      if (result.success) {
-        toast.success(editId ? 'Profissional atualizado com sucesso!' : 'Profissional cadastrado com sucesso!', {
-          id: 'saving-professional'
-        });
-        
-        if (!editId) {
-          // Atualiza a lista de profissionais
-          await fetchProfessionals();
-          // Apenas limpa o formulário depois de ter certeza que o cadastro foi bem-sucedido
-          form.reset(defaultValues);
-        }
-        
-        // Limpar timeout
-        clearTimeout(submitTimeout);
-        
-        // Redirecionar para a lista de profissionais após 1 segundo para permitir que o toast seja visualizado
-        setTimeout(() => {
-          navigate('/professionals');
-        }, 1000);
-      }
-    } catch (error) {
-      // Limpar timeout
-      clearTimeout(submitTimeout);
-      
-      console.error('Erro ao salvar profissional:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Erro ao salvar profissional. Tente novamente.';
-      
-      toast.error(errorMessage, {
-        id: 'saving-professional'
       });
       
-      // Tentar recarregar a lista de profissionais para garantir que o estado está atualizado
-      try {
-        await fetchProfessionals();
-      } catch (fetchError) {
-        console.error('Erro ao atualizar lista de profissionais:', fetchError);
+      // Aguardar o resultado da operação
+      const result = await operationPromise;
+      
+      if (result.success) {
+        if (result.online) {
+          // Operação online bem-sucedida
+          toast.success(editId ? 'Profissional atualizado com sucesso!' : 'Profissional cadastrado com sucesso!', {
+            id: 'saving-professional'
+          });
+          
+          // Atualiza a lista e limpa o formulário
+          await fetchProfessionals();
+          if (!editId) {
+            form.reset(defaultValues);
+          }
+        } else {
+          // Operação offline (salva localmente)
+          toast.success('Profissional salvo temporariamente. Será sincronizado quando houver conexão.', {
+            id: 'saving-professional'
+          });
+          
+          if (!editId) {
+            form.reset(defaultValues);
+          }
+        }
+        
+        // Redirecionar para a lista de profissionais
+        setTimeout(() => {
+          navigate('/professionals');
+        }, 1500);
+      } else {
+        // Falha na operação
+        toast.error(editId 
+          ? 'Não foi possível atualizar o profissional. Tente novamente.' 
+          : 'Não foi possível cadastrar o profissional. Tente novamente.', {
+          id: 'saving-professional'
+        });
       }
+    } catch (error) {
+      console.error('Erro ao processar operação:', error);
+      toast.error('Ocorreu um erro inesperado. Tente novamente.', {
+        id: 'saving-professional'
+      });
     } finally {
-      // Limpar timeout (caso não tenha sido limpo ainda)
-      clearTimeout(submitTimeout);
       setIsSubmitting(false);
     }
   }
