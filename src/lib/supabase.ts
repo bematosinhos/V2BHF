@@ -31,6 +31,26 @@ if (!supabaseUrl || !supabaseAnonKey) {
   )
 }
 
+// Cria uma instância personalizada de AbortController que é mais tolerante com tempos mais longos
+const createCustomAbortController = (timeoutMs = 60000) => {
+  // Para navegadores modernos, usamos AbortSignal.timeout
+  if (typeof AbortSignal.timeout === 'function') {
+    return { signal: AbortSignal.timeout(timeoutMs) };
+  }
+  
+  // Para navegadores mais antigos, implementamos nossa própria lógica
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  const originalAbort = controller.abort.bind(controller);
+  controller.abort = () => {
+    clearTimeout(timeoutId);
+    originalAbort();
+  };
+  
+  return controller;
+};
+
 // Inicialize o cliente Supabase com configurações otimizadas
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -39,38 +59,72 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: true,
   },
   global: {
-    // Aumento do timeout para ambientes de produção (30s por padrão)
-    fetch: (url, options) => {
-      const timeout = import.meta.env.PROD ? 40000 : 30000 // 40 segundos em produção, 30 em desenvolvimento
-      return fetch(url, {
+    // Configurar um fetch customizado com tolerância maior a timeouts para Vercel
+    fetch: (url: RequestInfo | URL, options: RequestInit = {}): Promise<Response> => {
+      // Timeout de 60 segundos para todas as requisições
+      const timeoutMs = 60000;
+      
+      const controller = createCustomAbortController(timeoutMs);
+      
+      // Preparar opções do fetch com o signal do controller
+      const fetchOptions = {
         ...options,
-        signal: AbortSignal.timeout(timeout), // Configura um timeout para requisições
-      })
+        signal: controller.signal,
+        headers: {
+          ...options.headers,
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          'Pragma': 'no-cache',
+        },
+      };
+      
+      // Criar uma promise de timeout para mostrar erro mais informativo
+      const timeoutPromise = new Promise<Response>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error(`Request timeout after ${timeoutMs}ms for URL: ${url}`));
+        }, timeoutMs);
+      });
+      
+      // Race entre o fetch e o timeout
+      return Promise.race([
+        fetch(url, fetchOptions),
+        timeoutPromise
+      ]).catch(err => {
+        // Log de erro mais detalhado
+        console.error('Supabase fetch error:', err);
+        throw err;
+      });
     },
   },
-  // Configurações de persistência de cache para otimizar desempenho
+  // Configurações de BD
   db: {
     schema: 'public',
   },
+  // Configurações para realtime
   realtime: {
-    // Configurações para realtime em produção
-    timeout: 60000, // 60 segundos para websockets 
+    timeout: 60000, // 60 segundos
   },
 })
 
-// Função de diagnóstico para verificar a conexão com o Supabase
+// Função para verificar a saúde da conexão com Supabase
 export async function checkSupabaseConnection() {
   try {
-    const { error } = await supabase.auth.getSession()
-
+    console.log('Verificando conexão com Supabase...');
+    const startTime = performance.now();
+    
+    const { error } = await supabase.auth.getSession();
+    
+    const endTime = performance.now();
+    const responseTime = Math.round(endTime - startTime);
+    
     if (error) {
-      console.error('Erro ao conectar com o Supabase:', error)
-      return { success: false, error }
+      console.error(`Erro ao conectar com o Supabase (${responseTime}ms):`, error);
+      return { success: false, error, responseTime };
     }
-
-    return { success: true }
+    
+    console.log(`Conexão com Supabase bem-sucedida (${responseTime}ms)`);
+    return { success: true, responseTime };
   } catch (error) {
-    console.error('Exceção ao verificar conexão do Supabase:', error)
-    return { success: false, error }
+    console.error('Exceção ao verificar conexão do Supabase:', error);
+    return { success: false, error };
   }
 }
