@@ -1,0 +1,4 @@
+#!/bin/sh
+echo "Starting custom build script for Vercel"
+npm run build
+echo "Build complete!" 
