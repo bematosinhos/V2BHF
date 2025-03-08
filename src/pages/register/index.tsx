@@ -37,7 +37,9 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Info, Loader2 } from 'lucide-react'
+import { AlertCircle, Info, Loader2 } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { checkSupabaseConnection } from '@/lib/supabase'
 
 // Validações personalizadas
 const cpfRegex = /^\d{3}\.\d{3}\.\d{3}-\d{2}$|^\d{11}$/
@@ -107,6 +109,8 @@ const RegisterPage: FC = () => {
   const editId = searchParams.get('edit')
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [formErrors, setFormErrors] = useState<string[]>([])
+  const [showValidationErrors, setShowValidationErrors] = useState(false)
 
   const { professionals, addProfessional, updateProfessional, removeProfessional, isLoading } =
     useAppStore()
@@ -117,7 +121,38 @@ const RegisterPage: FC = () => {
   const form = useForm<ProfessionalFormValues>({
     resolver: zodResolver(professionalFormSchema),
     defaultValues,
+    mode: 'onChange'
   })
+
+  // Atualizar a lista de erros quando o estado do formulário mudar
+  useEffect(() => {
+    if (showValidationErrors) {
+      const errors = Object.entries(form.formState.errors)
+        .filter(([_, error]) => error.message)
+        .map(([field, error]) => `${getFieldLabel(field)}: ${error.message}`);
+      
+      setFormErrors(errors);
+    }
+  }, [form.formState.errors, showValidationErrors]);
+
+  // Função auxiliar para obter o rótulo do campo com base no nome
+  const getFieldLabel = (fieldName: string): string => {
+    const labels: Record<string, string> = {
+      name: 'Nome',
+      role: 'Função',
+      cpf: 'CPF',
+      birthDate: 'Data de Nascimento',
+      startDate: 'Data de Início',
+      workHours: 'Carga Horária',
+      workCity: 'Cidade de Trabalho',
+      workStartTime: 'Horário de Início',
+      workEndTime: 'Horário de Término',
+      phone: 'Telefone',
+      email: 'Email',
+      status: 'Status'
+    };
+    return labels[fieldName] || fieldName;
+  };
 
   // Preencher o formulário com os dados do profissional quando estiver editando
   useEffect(() => {
@@ -151,10 +186,14 @@ const RegisterPage: FC = () => {
 
   async function onSubmit(data: ProfessionalFormValues) {
     try {
-      setIsSubmitting(true)
+      setIsSubmitting(true);
+      setShowValidationErrors(false);
+      
+      // Mostrar toast de processamento para feedback imediato
+      const loadingToast = toast.loading('Processando...');
 
       // Formatar o horário de trabalho
-      const formattedWorkHours = `${data.workStartTime}-${data.workEndTime}`
+      const formattedWorkHours = `${data.workStartTime}-${data.workEndTime}`;
 
       // Preparar os dados do profissional
       const professionalData: Omit<Professional, 'id'> = {
@@ -171,26 +210,64 @@ const RegisterPage: FC = () => {
         email: data.email,
         status: data.status,
         avatarUrl: professionalToEdit?.avatarUrl ?? '',
+      };
+
+      // Verificação adicional com o Supabase antes de prosseguir
+      const connectionCheck = await checkSupabaseConnection();
+      if (!connectionCheck.success) {
+        toast.dismiss(loadingToast);
+        toast.error('Erro de conexão com o servidor. Verifique sua internet e tente novamente.');
+        console.error('Falha na conexão com Supabase:', connectionCheck.error);
+        return;
       }
 
       if (editId) {
         // Atualizar profissional existente
-        await updateProfessional(editId, professionalData)
-        toast.success('Profissional atualizado com sucesso!')
+        const result = await updateProfessional(editId, professionalData);
+        if (result) {
+          toast.dismiss(loadingToast);
+          toast.success('Profissional atualizado com sucesso!');
+        } else {
+          throw new Error('Falha ao atualizar profissional');
+        }
       } else {
         // Adicionar novo profissional
-        await addProfessional(professionalData)
-        toast.success('Profissional cadastrado com sucesso!')
-        form.reset(defaultValues)
+        const result = await addProfessional(professionalData);
+        if (result) {
+          toast.dismiss(loadingToast);
+          toast.success('Profissional cadastrado com sucesso!');
+          form.reset(defaultValues);
+        } else {
+          throw new Error('Falha ao adicionar profissional');
+        }
       }
 
       // Redirecionar para a lista de profissionais
-      void navigate('/professionals')
+      navigate('/professionals');
     } catch (error) {
-      console.error('Erro ao salvar profissional:', error)
-      toast.error('Erro ao salvar profissional. Tente novamente.')
+      console.error('Erro ao salvar profissional:', error);
+      toast.error(`Erro ao salvar profissional: ${error instanceof Error ? error.message : 'Tente novamente'}`);
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
+    }
+  }
+
+  // Função para tentar submeter o formulário e mostrar erros se houver
+  async function handleFormSubmit() {
+    try {
+      const isValid = await form.trigger();
+      
+      if (!isValid) {
+        setShowValidationErrors(true);
+        return;
+      }
+      
+      const values = form.getValues();
+      await onSubmit(values);
+    } catch (error) {
+      console.error('Erro ao validar formulário:', error);
+      toast.error('Erro ao validar formulário');
+      setIsSubmitting(false);
     }
   }
 
@@ -259,10 +336,26 @@ const RegisterPage: FC = () => {
             <CardDescription>Preencha os dados do profissional doméstico.</CardDescription>
           </CardHeader>
           <CardContent>
+            {showValidationErrors && formErrors.length > 0 && (
+              <Alert variant="destructive" className="mb-6">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Não foi possível salvar o formulário</AlertTitle>
+                <AlertDescription>
+                  <p>Por favor, corrija os seguintes campos:</p>
+                  <ul className="mt-2 list-disc pl-5">
+                    {formErrors.map((error, index) => (
+                      <li key={index}>{error}</li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
+
             <Form {...form}>
               <form
                 onSubmit={(e) => {
-                  void form.handleSubmit(onSubmit)(e)
+                  e.preventDefault();
+                  handleFormSubmit();
                 }}
                 className="space-y-6"
               >
@@ -525,7 +618,7 @@ const RegisterPage: FC = () => {
                   >
                     Cancelar
                   </Button>
-                  <Button type="submit" disabled={isSubmitting || isLoading}>
+                  <Button type="submit" disabled={isSubmitting}>
                     {isSubmitting ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
