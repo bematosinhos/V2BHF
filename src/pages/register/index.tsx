@@ -115,11 +115,11 @@ const RegisterPage: FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [missingFields, setMissingFields] = useState<string[]>([])
 
-  const { professionals, addProfessional, updateProfessional, removeProfessional } =
+  const { professionals, addProfessional, updateProfessional, removeProfessional, fetchProfessionals } =
     useAppStore()
 
   // Encontrar o profissional a ser editado
-  const professionalToEdit = editId ? professionals.find((p) => p.id === editId) : null
+  const professionalToEdit = editId ? professionals.find((p: Professional) => p.id === editId) : null
 
   const form = useForm<ProfessionalFormValues>({
     resolver: zodResolver(professionalFormSchema),
@@ -182,10 +182,49 @@ const RegisterPage: FC = () => {
     }
   }, [professionalToEdit, form])
 
-  async function onSubmit(data: ProfessionalFormValues) {
-    try {
-      setIsSubmitting(true)
+  // Verificar se há campos duplicados na lista de profissionais
+  const checkDuplicates = async (professional: ProfessionalFormValues): Promise<boolean> => {
+    // Verifica se já existe algum profissional com o mesmo CPF ou email
+    const existingProfessionalWithCPF = professionals.find(
+      (p: Professional) => p.cpf === professional.cpf && p.id !== editId
+    )
+    
+    if (existingProfessionalWithCPF) {
+      toast.error(`Já existe um profissional cadastrado com o CPF ${professional.cpf}`);
+      return true;
+    }
+    
+    const existingProfessionalWithEmail = professionals.find(
+      (p: Professional) => p.email === professional.email && p.id !== editId
+    )
+    
+    if (existingProfessionalWithEmail) {
+      toast.error(`Já existe um profissional cadastrado com o email ${professional.email}`);
+      return true;
+    }
+    
+    return false;
+  };
 
+  async function onSubmit(data: ProfessionalFormValues) {
+    // Verifica duplicatas antes de tentar cadastrar
+    const hasDuplicates = await checkDuplicates(data);
+    if (hasDuplicates) {
+      return;
+    }
+    
+    // Iniciar contador para timeout
+    const submitTimeout = setTimeout(() => {
+      setIsSubmitting(false);
+      toast.error('O cadastro demorou muito tempo. Tente novamente.');
+    }, 15000); // 15 segundos de timeout
+    
+    setIsSubmitting(true);
+    toast.loading(editId ? 'Salvando alterações...' : 'Cadastrando profissional...', {
+      id: 'saving-professional'
+    });
+
+    try {
       // Formatar o horário de trabalho
       const formattedWorkHours = `${data.workStartTime}-${data.workEndTime}`
 
@@ -208,22 +247,56 @@ const RegisterPage: FC = () => {
 
       if (editId) {
         // Atualizar profissional existente
-        await updateProfessional(editId, professionalData)
-        toast.success('Profissional atualizado com sucesso!')
+        const updatedProfessional = await updateProfessional(editId, professionalData);
+        if (!updatedProfessional) {
+          throw new Error('Não foi possível atualizar o profissional. Verifique os dados e tente novamente.');
+        }
+        toast.success('Profissional atualizado com sucesso!', {
+          id: 'saving-professional'
+        });
       } else {
         // Adicionar novo profissional
-        await addProfessional(professionalData)
-        toast.success('Profissional cadastrado com sucesso!')
-        form.reset(defaultValues)
+        const newProfessional = await addProfessional(professionalData);
+        if (!newProfessional) {
+          throw new Error('Não foi possível cadastrar o profissional. Verifique os dados e tente novamente.');
+        }
+        toast.success('Profissional cadastrado com sucesso!', {
+          id: 'saving-professional'
+        });
+        // Atualiza a lista de profissionais
+        await fetchProfessionals();
+        // Apenas limpa o formulário depois de ter certeza que o cadastro foi bem-sucedido
+        form.reset(defaultValues);
       }
 
-      // Redirecionar para a lista de profissionais
-      void navigate('/professionals')
+      // Limpar timeout
+      clearTimeout(submitTimeout);
+      
+      // Redirecionar para a lista de profissionais após 1 segundo para permitir que o toast seja visualizado
+      setTimeout(() => {
+        navigate('/professionals');
+      }, 1000);
     } catch (error) {
-      console.error('Erro ao salvar profissional:', error)
-      toast.error('Erro ao salvar profissional. Tente novamente.')
+      // Limpar timeout
+      clearTimeout(submitTimeout);
+      
+      console.error('Erro ao salvar profissional:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao salvar profissional. Tente novamente.';
+      
+      toast.error(errorMessage, {
+        id: 'saving-professional'
+      });
+      
+      // Tentar recarregar a lista de profissionais para garantir que o estado está atualizado
+      try {
+        await fetchProfessionals();
+      } catch (fetchError) {
+        console.error('Erro ao atualizar lista de profissionais:', fetchError);
+      }
     } finally {
-      setIsSubmitting(false)
+      // Limpar timeout (caso não tenha sido limpo ainda)
+      clearTimeout(submitTimeout);
+      setIsSubmitting(false);
     }
   }
 
