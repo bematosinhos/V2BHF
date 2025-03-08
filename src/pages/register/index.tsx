@@ -113,7 +113,6 @@ const RegisterPage: FC = () => {
   const editId = searchParams.get('edit')
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [formValid, setFormValid] = useState(false)
   const [missingFields, setMissingFields] = useState<string[]>([])
 
   const { professionals, addProfessional, updateProfessional, removeProfessional } =
@@ -149,25 +148,6 @@ const RegisterPage: FC = () => {
       const missing = fields.filter(field => !field.value || field.value.trim() === '');
       setMissingFields(missing.map(field => field.key));
     });
-    
-    return () => subscription.unsubscribe();
-  }, [form]);
-
-  // Monitorar erros e validade do formulário
-  useEffect(() => {
-    const updateFormValidity = () => {
-      // Verificar a validade do formulário
-      const isValid = form.formState.isValid;
-      setFormValid(isValid);
-    }
-    
-    // Observar mudanças no formState
-    const subscription = form.watch(() => {
-      updateFormValidity();
-    });
-    
-    // Chamar inicialmente
-    updateFormValidity();
     
     return () => subscription.unsubscribe();
   }, [form]);
