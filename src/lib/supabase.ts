@@ -31,8 +31,32 @@ if (!supabaseUrl || !supabaseAnonKey) {
   )
 }
 
-// Inicialize o cliente Supabase
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Inicialize o cliente Supabase com configurações otimizadas
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+  global: {
+    // Aumento do timeout para ambientes de produção (30s por padrão)
+    fetch: (url, options) => {
+      const timeout = import.meta.env.PROD ? 40000 : 30000 // 40 segundos em produção, 30 em desenvolvimento
+      return fetch(url, {
+        ...options,
+        signal: AbortSignal.timeout(timeout), // Configura um timeout para requisições
+      })
+    },
+  },
+  // Configurações de persistência de cache para otimizar desempenho
+  db: {
+    schema: 'public',
+  },
+  realtime: {
+    // Configurações para realtime em produção
+    timeout: 60000, // 60 segundos para websockets 
+  },
+})
 
 // Função de diagnóstico para verificar a conexão com o Supabase
 export async function checkSupabaseConnection() {

@@ -216,8 +216,11 @@ const RegisterPage: FC = () => {
     // Iniciar contador para timeout
     const submitTimeout = setTimeout(() => {
       setIsSubmitting(false);
-      toast.error('O cadastro demorou muito tempo. Tente novamente.');
-    }, 15000); // 15 segundos de timeout
+      toast.error('O cadastro demorou muito tempo. Tente novamente.', {
+        id: 'saving-professional'
+      });
+      console.error('Timeout ao cadastrar profissional - operação excedeu 40 segundos');
+    }, 40000); // Aumentado para 40 segundos
     
     setIsSubmitting(true);
     toast.loading(editId ? 'Salvando alterações...' : 'Cadastrando profissional...', {
@@ -245,37 +248,71 @@ const RegisterPage: FC = () => {
         avatarUrl: professionalToEdit?.avatarUrl ?? '',
       }
 
-      if (editId) {
-        // Atualizar profissional existente
-        const updatedProfessional = await updateProfessional(editId, professionalData);
-        if (!updatedProfessional) {
-          throw new Error('Não foi possível atualizar o profissional. Verifique os dados e tente novamente.');
-        }
-        toast.success('Profissional atualizado com sucesso!', {
-          id: 'saving-professional'
-        });
-      } else {
-        // Adicionar novo profissional
-        const newProfessional = await addProfessional(professionalData);
-        if (!newProfessional) {
-          throw new Error('Não foi possível cadastrar o profissional. Verifique os dados e tente novamente.');
-        }
-        toast.success('Profissional cadastrado com sucesso!', {
-          id: 'saving-professional'
-        });
-        // Atualiza a lista de profissionais
-        await fetchProfessionals();
-        // Apenas limpa o formulário depois de ter certeza que o cadastro foi bem-sucedido
-        form.reset(defaultValues);
-      }
-
-      // Limpar timeout
-      clearTimeout(submitTimeout);
+      console.log('Iniciando operação no Supabase:', editId ? 'Atualização' : 'Cadastro');
       
-      // Redirecionar para a lista de profissionais após 1 segundo para permitir que o toast seja visualizado
-      setTimeout(() => {
-        navigate('/professionals');
-      }, 1000);
+      // Função para tentar a operação com retry
+      const attemptOperation = async (attempt = 1, maxAttempts = 3) => {
+        try {
+          console.log(`Tentativa ${attempt} de ${maxAttempts}`);
+          
+          if (editId) {
+            // Atualizar profissional existente
+            console.log('Atualizando profissional com ID:', editId);
+            const updatedProfessional = await updateProfessional(editId, professionalData);
+            if (!updatedProfessional) {
+              throw new Error('Não foi possível atualizar o profissional. Verifique os dados e tente novamente.');
+            }
+            console.log('Profissional atualizado com sucesso');
+            return { success: true, data: updatedProfessional };
+          } else {
+            // Adicionar novo profissional
+            console.log('Adicionando novo profissional');
+            const newProfessional = await addProfessional(professionalData);
+            if (!newProfessional) {
+              throw new Error('Não foi possível cadastrar o profissional. Verifique os dados e tente novamente.');
+            }
+            console.log('Profissional cadastrado com sucesso');
+            return { success: true, data: newProfessional };
+          }
+        } catch (error) {
+          console.error(`Erro na tentativa ${attempt}:`, error);
+          
+          if (attempt < maxAttempts) {
+            // Esperar um pouco antes de tentar novamente (exponential backoff)
+            const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+            console.log(`Aguardando ${waitTime}ms antes da próxima tentativa...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            return attemptOperation(attempt + 1, maxAttempts);
+          }
+          
+          // Se chegou aqui, todas as tentativas falharam
+          throw error;
+        }
+      };
+      
+      // Tentar a operação com retry
+      const result = await attemptOperation();
+      
+      if (result.success) {
+        toast.success(editId ? 'Profissional atualizado com sucesso!' : 'Profissional cadastrado com sucesso!', {
+          id: 'saving-professional'
+        });
+        
+        if (!editId) {
+          // Atualiza a lista de profissionais
+          await fetchProfessionals();
+          // Apenas limpa o formulário depois de ter certeza que o cadastro foi bem-sucedido
+          form.reset(defaultValues);
+        }
+        
+        // Limpar timeout
+        clearTimeout(submitTimeout);
+        
+        // Redirecionar para a lista de profissionais após 1 segundo para permitir que o toast seja visualizado
+        setTimeout(() => {
+          navigate('/professionals');
+        }, 1000);
+      }
     } catch (error) {
       // Limpar timeout
       clearTimeout(submitTimeout);
