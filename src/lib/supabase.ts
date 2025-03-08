@@ -23,6 +23,11 @@ if (import.meta.env.DEV && (isTempKey || isLocalDb)) {
   )
 }
 
+// Verificar a conectividade com a internet
+function checkConnection() {
+  return navigator.onLine
+}
+
 // Validação para evitar erros ao inicializar com valores inválidos
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error(
@@ -31,24 +36,64 @@ if (!supabaseUrl || !supabaseAnonKey) {
   )
 }
 
-// Cria uma instância personalizada de AbortController que é mais tolerante com tempos mais longos
-const createCustomAbortController = (timeoutMs = 60000) => {
-  // Para navegadores modernos, usamos AbortSignal.timeout
-  if (typeof AbortSignal.timeout === 'function') {
-    return { signal: AbortSignal.timeout(timeoutMs) };
-  }
-  
-  // Para navegadores mais antigos, implementamos nossa própria lógica
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  
-  const originalAbort = controller.abort.bind(controller);
-  controller.abort = () => {
+// Função para criar um fetch personalizado com retry para maior confiabilidade
+const createRetryFetch = (maxRetries = 3, timeout = 60000) => {
+  return async (url: RequestInfo | URL, options: RequestInit = {}): Promise<Response> => {
+    let attempt = 0;
+    let lastError: Error | null = null;
+
+    // Configurar o AbortController para timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    // Mesclar signal do timeout com options existentes
+    const fetchOptions = {
+      ...options,
+      signal: controller.signal,
+    };
+
+    while (attempt < maxRetries) {
+      try {
+        if (!checkConnection()) {
+          throw new Error('Sem conexão com a internet');
+        }
+
+        attempt++;
+        console.log(`Tentativa de fetch ${attempt}/${maxRetries} para ${url.toString()}`);
+        
+        const response = await fetch(url, fetchOptions);
+        
+        // Limpar o timeout
+        clearTimeout(timeoutId);
+        
+        // Se a resposta não for bem-sucedida, tratar como erro
+        if (!response.ok) {
+          throw new Error(`Resposta HTTP não OK: ${response.status}`);
+        }
+        
+        return response;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        console.error(`Erro na tentativa ${attempt}:`, lastError);
+        
+        // Se for o último retry, rejeitar
+        if (attempt >= maxRetries) {
+          break;
+        }
+        
+        // Backoff exponencial
+        const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+        console.log(`Aguardando ${delay}ms antes da próxima tentativa...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    
+    // Limpar o timeout por precaução
     clearTimeout(timeoutId);
-    originalAbort();
+    
+    // Se chegou aqui, todas as tentativas falharam
+    throw lastError || new Error('Máximo de tentativas excedido');
   };
-  
-  return controller;
 };
 
 // Inicialize o cliente Supabase com configurações otimizadas
@@ -59,72 +104,35 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: true,
   },
   global: {
-    // Configurar um fetch customizado com tolerância maior a timeouts para Vercel
-    fetch: (url: RequestInfo | URL, options: RequestInit = {}): Promise<Response> => {
-      // Timeout de 60 segundos para todas as requisições
-      const timeoutMs = 60000;
-      
-      const controller = createCustomAbortController(timeoutMs);
-      
-      // Preparar opções do fetch com o signal do controller
-      const fetchOptions = {
-        ...options,
-        signal: controller.signal,
-        headers: {
-          ...options.headers,
-          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-          'Pragma': 'no-cache',
-        },
-      };
-      
-      // Criar uma promise de timeout para mostrar erro mais informativo
-      const timeoutPromise = new Promise<Response>((_, reject) => {
-        setTimeout(() => {
-          reject(new Error(`Request timeout after ${timeoutMs}ms for URL: ${url}`));
-        }, timeoutMs);
-      });
-      
-      // Race entre o fetch e o timeout
-      return Promise.race([
-        fetch(url, fetchOptions),
-        timeoutPromise
-      ]).catch(err => {
-        // Log de erro mais detalhado
-        console.error('Supabase fetch error:', err);
-        throw err;
-      });
-    },
+    // Usa o fetch personalizado com retry
+    fetch: createRetryFetch(3, 60000),
   },
-  // Configurações de BD
   db: {
     schema: 'public',
   },
-  // Configurações para realtime
+  // Aumentando timeout para operações realtime
   realtime: {
-    timeout: 60000, // 60 segundos
+    timeout: 60000,
   },
 })
 
-// Função para verificar a saúde da conexão com Supabase
+// Função de diagnóstico para verificar a conexão com o Supabase
 export async function checkSupabaseConnection() {
   try {
-    console.log('Verificando conexão com Supabase...');
-    const startTime = performance.now();
-    
-    const { error } = await supabase.auth.getSession();
-    
-    const endTime = performance.now();
-    const responseTime = Math.round(endTime - startTime);
-    
-    if (error) {
-      console.error(`Erro ao conectar com o Supabase (${responseTime}ms):`, error);
-      return { success: false, error, responseTime };
+    if (!checkConnection()) {
+      return { success: false, error: new Error('Sem conexão com a internet') };
     }
     
-    console.log(`Conexão com Supabase bem-sucedida (${responseTime}ms)`);
-    return { success: true, responseTime };
+    const { error } = await supabase.auth.getSession()
+
+    if (error) {
+      console.error('Erro ao conectar com o Supabase:', error)
+      return { success: false, error }
+    }
+
+    return { success: true }
   } catch (error) {
-    console.error('Exceção ao verificar conexão do Supabase:', error);
-    return { success: false, error };
+    console.error('Exceção ao verificar conexão do Supabase:', error)
+    return { success: false, error }
   }
 }

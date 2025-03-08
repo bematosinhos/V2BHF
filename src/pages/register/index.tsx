@@ -206,6 +206,37 @@ const RegisterPage: FC = () => {
     return false;
   };
 
+  // Função para executar operações com Supabase com reentativa automática
+  const executeWithRetry = async (operation: () => Promise<any>, maxAttempts = 5) => {
+    let attempt = 1;
+    let lastError = null;
+
+    while (attempt <= maxAttempts) {
+      try {
+        console.log(`Tentativa ${attempt} de ${maxAttempts}...`);
+        const result = await operation();
+        console.log('Operação concluída com sucesso');
+        return result;
+      } catch (error) {
+        lastError = error;
+        console.error(`Erro na tentativa ${attempt}:`, error);
+        
+        if (attempt < maxAttempts) {
+          // Backoff exponencial com jitter para evitar sobrecarga
+          const backoff = Math.min(Math.pow(2, attempt) * 500, 10000);
+          const jitter = Math.random() * 500;
+          const waitTime = backoff + jitter;
+          
+          console.log(`Aguardando ${waitTime}ms antes da próxima tentativa...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          attempt++;
+        } else {
+          throw lastError;
+        }
+      }
+    }
+  };
+
   async function onSubmit(data: ProfessionalFormValues) {
     // Verifica duplicatas antes de tentar cadastrar
     const hasDuplicates = await checkDuplicates(data);
@@ -220,7 +251,7 @@ const RegisterPage: FC = () => {
 
     try {
       // Formatar o horário de trabalho
-      const formattedWorkHours = `${data.workStartTime}-${data.workEndTime}`
+      const formattedWorkHours = `${data.workStartTime}-${data.workEndTime}`;
 
       // Preparar os dados do profissional
       const professionalData: Omit<Professional, 'id'> = {
@@ -237,45 +268,17 @@ const RegisterPage: FC = () => {
         email: data.email,
         status: data.status,
         avatarUrl: professionalToEdit?.avatarUrl ?? '',
-      }
+      };
 
       console.log('Iniciando operação:', editId ? 'Atualização' : 'Cadastro');
       
-      // Função para executar uma operação com retry
-      const executeWithRetry = async (operation: () => Promise<any>, maxAttempts = 5) => {
-        let lastError;
-        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-          try {
-            console.log(`Tentativa ${attempt} de ${maxAttempts}`);
-            const result = await operation();
-            console.log(`Operação bem-sucedida na tentativa ${attempt}`);
-            return result;
-          } catch (error) {
-            lastError = error;
-            console.error(`Erro na tentativa ${attempt}:`, error);
-            
-            // Se for a última tentativa, não esperamos mais
-            if (attempt < maxAttempts) {
-              // Espera exponencial antes da próxima tentativa
-              const delay = Math.min(2000 * Math.pow(1.5, attempt - 1), 10000);
-              console.log(`Aguardando ${delay}ms antes da próxima tentativa...`);
-              await new Promise(resolve => setTimeout(resolve, delay));
-            }
-          }
-        }
-        // Se chegou aqui, todas as tentativas falharam
-        throw lastError || new Error('Todas as tentativas falharam');
-      };
-      
-      let result;
-      
       if (editId) {
-        // Atualizar profissional existente
-        result = await executeWithRetry(async () => {
-          console.log('Atualizando profissional com ID:', editId);
+        // Atualizar profissional existente com retry
+        await executeWithRetry(async () => {
+          console.log('Atualizando profissional:', editId);
           const updatedProfessional = await updateProfessional(editId, professionalData);
           if (!updatedProfessional) {
-            throw new Error('Não foi possível atualizar o profissional. Tente novamente.');
+            throw new Error('Falha ao atualizar profissional. Tente novamente.');
           }
           return updatedProfessional;
         });
@@ -284,12 +287,12 @@ const RegisterPage: FC = () => {
           id: 'saving-professional'
         });
       } else {
-        // Adicionar novo profissional
-        result = await executeWithRetry(async () => {
+        // Adicionar novo profissional com retry
+        await executeWithRetry(async () => {
           console.log('Adicionando novo profissional');
           const newProfessional = await addProfessional(professionalData);
           if (!newProfessional) {
-            throw new Error('Não foi possível cadastrar o profissional. Tente novamente.');
+            throw new Error('Falha ao cadastrar profissional. Tente novamente.');
           }
           return newProfessional;
         });
@@ -298,26 +301,30 @@ const RegisterPage: FC = () => {
           id: 'saving-professional'
         });
         
-        // Apenas limpa o formulário depois de ter certeza que o cadastro foi bem-sucedido
+        // Atualiza a lista de profissionais
+        await fetchProfessionals();
+        
+        // Limpar o formulário
         form.reset(defaultValues);
       }
       
-      // Atualiza a lista de profissionais
-      await fetchProfessionals();
-      
-      // Redirecionar para a lista de profissionais após 1 segundo
+      // Redirecionar para a lista de profissionais após 1.5 segundos
       setTimeout(() => {
         navigate('/professionals');
-      }, 1000);
+      }, 1500);
     } catch (error) {
-      console.error('Erro ao salvar profissional:', error);
-      const errorMessage = error instanceof Error 
-        ? error.message 
-        : 'Erro ao salvar profissional. Tente novamente.';
-      
+      console.error('Erro ao processar operação:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro inesperado. Tente novamente.';
       toast.error(errorMessage, {
         id: 'saving-professional'
       });
+      
+      // Garantir que a lista de profissionais esteja atualizada
+      try {
+        await fetchProfessionals();
+      } catch (fetchError) {
+        console.error('Erro ao atualizar lista de profissionais:', fetchError);
+      }
     } finally {
       setIsSubmitting(false);
     }

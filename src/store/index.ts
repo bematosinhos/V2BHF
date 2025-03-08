@@ -320,15 +320,41 @@ export const useAppStore = create<AppState>()(
             email: professional.email ?? '',
           }
 
+          // Registrar tentativa de cadastro
+          console.log('Tentando adicionar profissional:', professionalWithRequiredFields.name);
+
           // Converter para o formato do Supabase (snake_case)
           const professionalData = convertToSupabaseProfessional(professionalWithRequiredFields)
 
+          console.log('Enviando dados para Supabase...');
+          
+          // Registrar o momento de início da operação para calcular o tempo total
+          const startTime = performance.now();
+          
           const { data, error } = await professionalService.addProfessional(professionalData)
-          if (error) throw error
+          
+          // Calcular tempo da operação
+          const endTime = performance.now();
+          const operationTime = Math.round(endTime - startTime);
+          console.log(`Operação completada em ${operationTime}ms`);
+          
+          if (error) {
+            console.error('Erro retornado pelo Supabase:', error);
+            throw error;
+          }
+
+          if (!data || data.length === 0) {
+            console.error('Nenhum dado retornado pelo Supabase');
+            throw new Error('Falha ao cadastrar profissional: nenhum dado retornado');
+          }
+
+          console.log('Dados recebidos do Supabase:', data);
 
           if (data?.[0]) {
             // Converter de volta para camelCase
             const newProfessional = convertToAppProfessional(data[0] as SupabaseProfessional)
+
+            console.log('Profissional adicionado com sucesso:', newProfessional.name);
 
             set((state) => ({
               professionals: [...state.professionals, newProfessional],
@@ -336,6 +362,7 @@ export const useAppStore = create<AppState>()(
 
             return newProfessional
           }
+          console.error('Dados retornados pelo Supabase são inválidos');
           return null
         } catch (error) {
           console.error('Erro ao adicionar profissional:', error)
@@ -347,6 +374,9 @@ export const useAppStore = create<AppState>()(
       updateProfessional: async (id, updates) => {
         try {
           set({ isLoading: true })
+
+          // Registrar tentativa de atualização
+          console.log('Tentando atualizar profissional:', id);
 
           // Converter camelCase para snake_case para o Supabase
           const updateData: Partial<SupabaseProfessional> = {}
@@ -364,21 +394,42 @@ export const useAppStore = create<AppState>()(
           if (updates.phone !== undefined) updateData.phone = updates.phone
           if (updates.email !== undefined) updateData.email = updates.email
 
+          console.log('Enviando dados para Supabase...');
+          
+          // Registrar o momento de início da operação para calcular o tempo total
+          const startTime = performance.now();
+          
           const { data, error } = await professionalService.updateProfessional(id, updateData)
-          if (error) throw error
+          
+          // Calcular tempo da operação
+          const endTime = performance.now();
+          const operationTime = Math.round(endTime - startTime);
+          console.log(`Operação completada em ${operationTime}ms`);
+          
+          if (error) {
+            console.error('Erro retornado pelo Supabase:', error);
+            throw error;
+          }
+
+          if (!data || data.length === 0) {
+            console.error('Nenhum dado retornado pelo Supabase');
+            throw new Error('Falha ao atualizar profissional: nenhum dado retornado');
+          }
 
           if (data?.[0]) {
-            // Atualizar o estado local com os dados retornados
             const updatedProfessional = convertToAppProfessional(data[0] as SupabaseProfessional)
+
+            console.log('Profissional atualizado com sucesso:', updatedProfessional.name);
 
             set((state) => ({
               professionals: state.professionals.map((p) =>
-                p.id === id ? updatedProfessional : p,
+                p.id === id ? updatedProfessional : p
               ),
             }))
 
             return updatedProfessional
           }
+          console.error('Dados retornados pelo Supabase são inválidos');
           return null
         } catch (error) {
           console.error('Erro ao atualizar profissional:', error)
