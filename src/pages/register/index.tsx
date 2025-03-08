@@ -18,6 +18,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from '@/components/ui/form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
@@ -37,9 +38,8 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { AlertCircle, Info } from 'lucide-react'
+import { Info, Loader2 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { checkSupabaseConnection } from '@/lib/supabase'
 
 // Validações personalizadas
 const cpfRegex = /^\d{3}\.\d{3}\.\d{3}-\d{2}$|^\d{11}$/
@@ -72,7 +72,10 @@ const CITIES = [
 const professionalFormSchema = z.object({
   name: z.string().min(3, { message: 'O nome deve ter pelo menos 3 caracteres' }),
   role: z.string().min(1, { message: 'Selecione uma função' }),
-  cpf: z.string().regex(cpfRegex, { message: 'CPF inválido. Use o formato 000.000.000-00' }),
+  cpf: z
+    .string()
+    .min(1, { message: 'CPF é obrigatório' })
+    .regex(cpfRegex, { message: 'CPF inválido. Use o formato 000.000.000-00' }),
   birthDate: z.string().min(1, { message: 'Data de nascimento é obrigatória' }),
   startDate: z.string().min(1, { message: 'Data de início é obrigatória' }),
   workHours: z.string().min(1, { message: 'Carga horária é obrigatória' }),
@@ -81,6 +84,7 @@ const professionalFormSchema = z.object({
   workEndTime: z.string().min(1, { message: 'Horário de término é obrigatório' }),
   phone: z
     .string()
+    .min(1, { message: 'Telefone é obrigatório' })
     .regex(phoneRegex, { message: 'Telefone inválido. Use o formato (00) 00000-0000' }),
   email: z.string().email({ message: 'Email inválido' }).min(1, { message: 'Email é obrigatório' }),
   status: z.enum(['active', 'inactive', 'vacation']).default('active'),
@@ -109,8 +113,8 @@ const RegisterPage: FC = () => {
   const editId = searchParams.get('edit')
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [formErrors, setFormErrors] = useState<string[]>([])
-  const [showValidationErrors, setShowValidationErrors] = useState(false)
+  const [formValid, setFormValid] = useState(false)
+  const [missingFields, setMissingFields] = useState<string[]>([])
 
   const { professionals, addProfessional, updateProfessional, removeProfessional } =
     useAppStore()
@@ -121,38 +125,52 @@ const RegisterPage: FC = () => {
   const form = useForm<ProfessionalFormValues>({
     resolver: zodResolver(professionalFormSchema),
     defaultValues,
-    mode: 'onChange'
+    mode: 'onChange', // Valida o formulário automaticamente quando os campos mudam
   })
 
-  // Atualizar a lista de erros quando o estado do formulário mudar
+  // Verificar a validade do formulário e atualizar o estado
   useEffect(() => {
-    if (showValidationErrors) {
-      const errors = Object.entries(form.formState.errors)
-        .filter(([_, error]) => error.message)
-        .map(([field, error]) => `${getFieldLabel(field)}: ${error.message}`);
+    const subscription = form.watch((value) => {
+      // Verificar campos obrigatórios
+      const fields = [
+        { name: 'Nome', value: value.name, key: 'name' },
+        { name: 'Função', value: value.role, key: 'role' },
+        { name: 'CPF', value: value.cpf, key: 'cpf' },
+        { name: 'Data de Nascimento', value: value.birthDate, key: 'birthDate' },
+        { name: 'Data de Início', value: value.startDate, key: 'startDate' },
+        { name: 'Carga Horária', value: value.workHours, key: 'workHours' },
+        { name: 'Cidade de Trabalho', value: value.workCity, key: 'workCity' },
+        { name: 'Horário de Início', value: value.workStartTime, key: 'workStartTime' },
+        { name: 'Horário de Término', value: value.workEndTime, key: 'workEndTime' },
+        { name: 'Telefone', value: value.phone, key: 'phone' },
+        { name: 'Email', value: value.email, key: 'email' },
+      ];
       
-      setFormErrors(errors);
-    }
-  }, [form.formState.errors, showValidationErrors]);
+      const missing = fields.filter(field => !field.value || field.value.trim() === '');
+      setMissingFields(missing.map(field => field.key));
+    });
+    
+    return () => subscription.unsubscribe();
+  }, [form]);
 
-  // Função auxiliar para obter o rótulo do campo com base no nome
-  const getFieldLabel = (fieldName: string): string => {
-    const labels: Record<string, string> = {
-      name: 'Nome',
-      role: 'Função',
-      cpf: 'CPF',
-      birthDate: 'Data de Nascimento',
-      startDate: 'Data de Início',
-      workHours: 'Carga Horária',
-      workCity: 'Cidade de Trabalho',
-      workStartTime: 'Horário de Início',
-      workEndTime: 'Horário de Término',
-      phone: 'Telefone',
-      email: 'Email',
-      status: 'Status'
-    };
-    return labels[fieldName] || fieldName;
-  };
+  // Monitorar erros e validade do formulário
+  useEffect(() => {
+    const updateFormValidity = () => {
+      // Verificar a validade do formulário
+      const isValid = form.formState.isValid;
+      setFormValid(isValid);
+    }
+    
+    // Observar mudanças no formState
+    const subscription = form.watch(() => {
+      updateFormValidity();
+    });
+    
+    // Chamar inicialmente
+    updateFormValidity();
+    
+    return () => subscription.unsubscribe();
+  }, [form]);
 
   // Preencher o formulário com os dados do profissional quando estiver editando
   useEffect(() => {
@@ -186,14 +204,10 @@ const RegisterPage: FC = () => {
 
   async function onSubmit(data: ProfessionalFormValues) {
     try {
-      setIsSubmitting(true);
-      setShowValidationErrors(false);
-      
-      // Mostrar toast de processamento para feedback imediato
-      const loadingToast = toast.loading('Processando...');
+      setIsSubmitting(true)
 
       // Formatar o horário de trabalho
-      const formattedWorkHours = `${data.workStartTime}-${data.workEndTime}`;
+      const formattedWorkHours = `${data.workStartTime}-${data.workEndTime}`
 
       // Preparar os dados do profissional
       const professionalData: Omit<Professional, 'id'> = {
@@ -210,87 +224,93 @@ const RegisterPage: FC = () => {
         email: data.email,
         status: data.status,
         avatarUrl: professionalToEdit?.avatarUrl ?? '',
-      };
-
-      // Verificação adicional com o Supabase antes de prosseguir
-      const connectionCheck = await checkSupabaseConnection();
-      if (!connectionCheck.success) {
-        toast.dismiss(loadingToast);
-        toast.error('Erro de conexão com o servidor. Verifique sua internet e tente novamente.');
-        console.error('Falha na conexão com Supabase:', connectionCheck.error);
-        return;
       }
 
       if (editId) {
         // Atualizar profissional existente
-        const result = await updateProfessional(editId, professionalData);
-        if (result) {
-          toast.dismiss(loadingToast);
-          toast.success('Profissional atualizado com sucesso!');
-        } else {
-          throw new Error('Falha ao atualizar profissional');
-        }
+        await updateProfessional(editId, professionalData)
+        toast.success('Profissional atualizado com sucesso!')
       } else {
         // Adicionar novo profissional
-        const result = await addProfessional(professionalData);
-        if (result) {
-          toast.dismiss(loadingToast);
-          toast.success('Profissional cadastrado com sucesso!');
-          form.reset(defaultValues);
-        } else {
-          throw new Error('Falha ao adicionar profissional');
-        }
+        await addProfessional(professionalData)
+        toast.success('Profissional cadastrado com sucesso!')
+        form.reset(defaultValues)
       }
 
       // Redirecionar para a lista de profissionais
-      navigate('/professionals');
+      void navigate('/professionals')
     } catch (error) {
-      console.error('Erro ao salvar profissional:', error);
-      toast.error(`Erro ao salvar profissional: ${error instanceof Error ? error.message : 'Tente novamente'}`);
+      console.error('Erro ao salvar profissional:', error)
+      toast.error('Erro ao salvar profissional. Tente novamente.')
     } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  // Função para tentar submeter o formulário e mostrar erros se houver
-  async function handleFormSubmit() {
-    try {
-      setIsSubmitting(true);
-      const isValid = await form.trigger();
-      
-      if (!isValid) {
-        setShowValidationErrors(true);
-        setIsSubmitting(false);
-        return;
-      }
-      
-      const values = form.getValues();
-      await onSubmit(values);
-    } catch (error) {
-      console.error('Erro ao validar formulário:', error);
-      toast.error('Erro ao validar formulário');
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
   }
 
   async function handleDelete() {
     if (editId) {
       try {
-        setIsSubmitting(true);
-        await removeProfessional(editId);
-        toast.success('Profissional excluído com sucesso!');
-        void navigate('/professionals');
+        setIsSubmitting(true)
+        await removeProfessional(editId)
+        toast.success('Profissional excluído com sucesso!')
+        void navigate('/professionals')
       } catch (error) {
-        console.error('Erro ao excluir profissional:', error);
-        toast.error('Erro ao excluir profissional. Tente novamente.');
+        console.error('Erro ao excluir profissional:', error)
+        toast.error('Erro ao excluir profissional. Tente novamente.')
       } finally {
-        setIsSubmitting(false);
+        setIsSubmitting(false)
       }
     }
   }
 
   function handleCancel() {
     void navigate('/professionals')
+  }
+  
+  // Verificar a validade do formulário e forçar a validação de todos os campos
+  const checkFormValidity = () => {
+    // Aciona a validação de todos os campos
+    void form.trigger();
+    
+    // Retorna os nomes dos campos com erros
+    const formErrors = form.formState.errors;
+    const errorFields = Object.keys(formErrors);
+    
+    if (errorFields.length > 0) {
+      // Mapear os erros para nomes de campos mais amigáveis
+      const fieldNames: Record<string, string> = {
+        name: 'Nome',
+        role: 'Função',
+        cpf: 'CPF',
+        birthDate: 'Data de Nascimento',
+        startDate: 'Data de Início',
+        workHours: 'Carga Horária',
+        workCity: 'Cidade de Trabalho',
+        workStartTime: 'Horário de Início',
+        workEndTime: 'Horário de Término',
+        phone: 'Telefone',
+        email: 'Email',
+        status: 'Status'
+      };
+      
+      const errorFieldNames = errorFields.map(field => fieldNames[field] || field);
+      
+      toast.error(`Preencha corretamente os seguintes campos: ${errorFieldNames.join(', ')}`);
+      
+      // Destacar visualmente o primeiro campo com erro
+      const firstErrorField = errorFields[0];
+      if (firstErrorField) {
+        const errorElement = document.querySelector(`[name="${firstErrorField}"]`);
+        if (errorElement) {
+          errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          (errorElement as HTMLElement).focus();
+        }
+      }
+      
+      return false;
+    }
+    
+    return true;
   }
 
   return (
@@ -322,12 +342,9 @@ const RegisterPage: FC = () => {
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel disabled={isSubmitting}>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction 
-                    onClick={() => void handleDelete()} 
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? 'Excluindo...' : 'Confirmar'}
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => void handleDelete()}>
+                    Confirmar
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -341,16 +358,21 @@ const RegisterPage: FC = () => {
             <CardDescription>Preencha os dados do profissional doméstico.</CardDescription>
           </CardHeader>
           <CardContent>
-            {showValidationErrors && formErrors.length > 0 && (
+            {missingFields.length > 0 && (
               <Alert variant="destructive" className="mb-6">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Não foi possível salvar o formulário</AlertTitle>
+                <AlertTitle>Formulário incompleto</AlertTitle>
                 <AlertDescription>
-                  <p>Por favor, corrija os seguintes campos:</p>
-                  <ul className="mt-2 list-disc pl-5">
-                    {formErrors.map((error, index) => (
-                      <li key={index}>{error}</li>
-                    ))}
+                  Os seguintes campos são obrigatórios:
+                  <ul className="mt-2 list-disc pl-4">
+                    {missingFields.includes('name') && <li>Nome</li>}
+                    {missingFields.includes('role') && <li>Função</li>}
+                    {missingFields.includes('cpf') && <li>CPF</li>}
+                    {missingFields.includes('birthDate') && <li>Data de Nascimento</li>}
+                    {missingFields.includes('startDate') && <li>Data de Início</li>}
+                    {missingFields.includes('workHours') && <li>Carga Horária</li>}
+                    {missingFields.includes('workCity') && <li>Cidade de Trabalho</li>}
+                    {missingFields.includes('phone') && <li>Telefone</li>}
+                    {missingFields.includes('email') && <li>Email</li>}
                   </ul>
                 </AlertDescription>
               </Alert>
@@ -360,7 +382,9 @@ const RegisterPage: FC = () => {
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  handleFormSubmit();
+                  if (checkFormValidity()) {
+                    void form.handleSubmit(onSubmit)(e);
+                  }
                 }}
                 className="space-y-6"
               >
@@ -372,7 +396,9 @@ const RegisterPage: FC = () => {
                       name="name"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Nome Completo</FormLabel>
+                          <FormLabel className="after:text-red-500 after:content-['*']">
+                            Nome Completo
+                          </FormLabel>
                           <FormControl>
                             <Input placeholder="Nome do profissional" {...field} />
                           </FormControl>
@@ -386,7 +412,9 @@ const RegisterPage: FC = () => {
                       name="role"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Função</FormLabel>
+                          <FormLabel className="after:text-red-500 after:content-['*']">
+                            Função
+                          </FormLabel>
                           <Select
                             onValueChange={field.onChange}
                             defaultValue={field.value}
@@ -415,10 +443,15 @@ const RegisterPage: FC = () => {
                       name="cpf"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>CPF</FormLabel>
+                          <FormLabel className="after:text-red-500 after:content-['*']">
+                            CPF
+                          </FormLabel>
                           <FormControl>
                             <Input placeholder="000.000.000-00" {...field} />
                           </FormControl>
+                          <FormDescription className="text-xs">
+                            Formato: 000.000.000-00
+                          </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -429,7 +462,9 @@ const RegisterPage: FC = () => {
                       name="birthDate"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Data de Nascimento</FormLabel>
+                          <FormLabel className="after:text-red-500 after:content-['*']">
+                            Data de Nascimento
+                          </FormLabel>
                           <FormControl>
                             <Input type="date" {...field} />
                           </FormControl>
@@ -450,7 +485,9 @@ const RegisterPage: FC = () => {
                       name="startDate"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Data de Início</FormLabel>
+                          <FormLabel className="after:text-red-500 after:content-['*']">
+                            Data de Início
+                          </FormLabel>
                           <FormControl>
                             <Input type="date" {...field} />
                           </FormControl>
@@ -464,7 +501,9 @@ const RegisterPage: FC = () => {
                       name="workHours"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Carga Horária Mensal (horas)</FormLabel>
+                          <FormLabel className="after:text-red-500 after:content-['*']">
+                            Carga Horária Mensal (horas)
+                          </FormLabel>
                           <FormControl>
                             <Input type="number" placeholder="220" {...field} />
                           </FormControl>
@@ -478,7 +517,9 @@ const RegisterPage: FC = () => {
                       name="workCity"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Cidade de Trabalho</FormLabel>
+                          <FormLabel className="after:text-red-500 after:content-['*']">
+                            Cidade de Trabalho
+                          </FormLabel>
                           <Select
                             onValueChange={field.onChange}
                             defaultValue={field.value}
@@ -504,7 +545,9 @@ const RegisterPage: FC = () => {
 
                     <div className="space-y-4">
                       <div className="flex items-center gap-2">
-                        <FormLabel>Horário Base de Trabalho</FormLabel>
+                        <FormLabel className="after:text-red-500 after:content-['*']">
+                          Horário Base de Trabalho
+                        </FormLabel>
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -525,7 +568,9 @@ const RegisterPage: FC = () => {
                           name="workStartTime"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Início</FormLabel>
+                              <FormLabel className="after:text-red-500 after:content-['*']">
+                                Início
+                              </FormLabel>
                               <FormControl>
                                 <Input type="time" {...field} />
                               </FormControl>
@@ -539,7 +584,9 @@ const RegisterPage: FC = () => {
                           name="workEndTime"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Fim</FormLabel>
+                              <FormLabel className="after:text-red-500 after:content-['*']">
+                                Fim
+                              </FormLabel>
                               <FormControl>
                                 <Input type="time" {...field} />
                               </FormControl>
@@ -555,7 +602,9 @@ const RegisterPage: FC = () => {
                       name="status"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Status</FormLabel>
+                          <FormLabel className="after:text-red-500 after:content-['*']">
+                            Status
+                          </FormLabel>
                           <Select
                             onValueChange={field.onChange}
                             defaultValue={field.value}
@@ -589,10 +638,15 @@ const RegisterPage: FC = () => {
                       name="phone"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Telefone</FormLabel>
+                          <FormLabel className="after:text-red-500 after:content-['*']">
+                            Telefone
+                          </FormLabel>
                           <FormControl>
                             <Input placeholder="(00) 00000-0000" {...field} />
                           </FormControl>
+                          <FormDescription className="text-xs">
+                            Formato: (00) 00000-0000
+                          </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -603,7 +657,9 @@ const RegisterPage: FC = () => {
                       name="email"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Email</FormLabel>
+                          <FormLabel className="after:text-red-500 after:content-['*']">
+                            Email
+                          </FormLabel>
                           <FormControl>
                             <Input type="email" placeholder="email@exemplo.com" {...field} />
                           </FormControl>
@@ -624,13 +680,19 @@ const RegisterPage: FC = () => {
                     Cancelar
                   </Button>
                   <Button 
-                    type="submit"
+                    type="submit" 
                     disabled={isSubmitting}
                   >
-                    {isSubmitting 
-                      ? 'Processando...' 
-                      : (editId ? 'Salvar Alterações' : 'Cadastrar Profissional')
-                    }
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {editId ? 'Salvando...' : 'Cadastrando...'}
+                      </>
+                    ) : editId ? (
+                      'Salvar Alterações'
+                    ) : (
+                      'Cadastrar Profissional'
+                    )}
                   </Button>
                 </div>
               </form>

@@ -40,6 +40,7 @@ const LandingPage = lazy(() => import('./pages/landing'))
 const LoginPage = lazy(() => import('./pages/auth/login'))
 const RegisterPage = lazy(() => import('./pages/auth/register'))
 const AuthCallback = lazy(() => import('./pages/auth/callback'))
+const ResetPasswordPage = lazy(() => import('./pages/auth/reset-password'))
 const DashboardPage = lazy(() => import('./pages/dashboard'))
 const ProfessionalsPage = lazy(() => import('./pages/professionals'))
 const ProfessionalDetailPage = lazy(() => import('./pages/professionals/detail'))
@@ -151,6 +152,16 @@ function App() {
             element={
               <Suspense fallback={<Loading />}>
                 <AuthCallback />
+              </Suspense>
+            } 
+          />
+          
+          {/* Rota para redefinição de senha */}
+          <Route 
+            path="/auth/reset-password" 
+            element={
+              <Suspense fallback={<Loading />}>
+                <ResetPasswordPage />
               </Suspense>
             } 
           />
