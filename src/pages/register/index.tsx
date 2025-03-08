@@ -108,7 +108,7 @@ const RegisterPage: FC = () => {
   const navigate = useNavigate()
   const editId = searchParams.get('edit')
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [formErrors, setFormErrors] = useState<string[]>([])
   const [showValidationErrors, setShowValidationErrors] = useState(false)
 
@@ -186,6 +186,7 @@ const RegisterPage: FC = () => {
 
   async function onSubmit(data: ProfessionalFormValues) {
     try {
+      setIsSubmitting(true);
       setShowValidationErrors(false);
       
       // Mostrar toast de processamento para feedback imediato
@@ -246,16 +247,20 @@ const RegisterPage: FC = () => {
     } catch (error) {
       console.error('Erro ao salvar profissional:', error);
       toast.error(`Erro ao salvar profissional: ${error instanceof Error ? error.message : 'Tente novamente'}`);
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
   // Função para tentar submeter o formulário e mostrar erros se houver
   async function handleFormSubmit() {
     try {
+      setIsSubmitting(true);
       const isValid = await form.trigger();
       
       if (!isValid) {
         setShowValidationErrors(true);
+        setIsSubmitting(false);
         return;
       }
       
@@ -264,18 +269,22 @@ const RegisterPage: FC = () => {
     } catch (error) {
       console.error('Erro ao validar formulário:', error);
       toast.error('Erro ao validar formulário');
+      setIsSubmitting(false);
     }
   }
 
   async function handleDelete() {
     if (editId) {
       try {
-        await removeProfessional(editId)
-        toast.success('Profissional excluído com sucesso!')
-        void navigate('/professionals')
+        setIsSubmitting(true);
+        await removeProfessional(editId);
+        toast.success('Profissional excluído com sucesso!');
+        void navigate('/professionals');
       } catch (error) {
-        console.error('Erro ao excluir profissional:', error)
-        toast.error('Erro ao excluir profissional. Tente novamente.')
+        console.error('Erro ao excluir profissional:', error);
+        toast.error('Erro ao excluir profissional. Tente novamente.');
+      } finally {
+        setIsSubmitting(false);
       }
     }
   }
@@ -313,9 +322,12 @@ const RegisterPage: FC = () => {
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => void handleDelete()}>
-                    Confirmar
+                  <AlertDialogCancel disabled={isSubmitting}>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={() => void handleDelete()} 
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? 'Excluindo...' : 'Confirmar'}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -607,15 +619,18 @@ const RegisterPage: FC = () => {
                     type="button"
                     variant="outline"
                     onClick={handleCancel}
+                    disabled={isSubmitting}
                   >
                     Cancelar
                   </Button>
-                  <Button type="submit">
-                    {editId ? (
-                      'Salvar Alterações'
-                    ) : (
-                      'Cadastrar Profissional'
-                    )}
+                  <Button 
+                    type="submit"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting 
+                      ? 'Processando...' 
+                      : (editId ? 'Salvar Alterações' : 'Cadastrar Profissional')
+                    }
                   </Button>
                 </div>
               </form>
