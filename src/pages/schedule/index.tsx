@@ -634,9 +634,6 @@ const SchedulePage: FC = () => {
     };
   }, [hasUnsavedChanges]);
 
-  // Adicionar flag para controlar o carregamento inicial
-  const [initialLoadDone, setInitialLoadDone] = useState(false);
-
   // Adicionar efeito para carregar dados ao montar o componente - versão melhorada
   useEffect(() => {
     // Função assíncrona para carregar dados iniciais
@@ -647,8 +644,7 @@ const SchedulePage: FC = () => {
       try {
         await loadScheduleFromSupabase();
         
-        // Marcar carregamento inicial como concluído
-        setInitialLoadDone(true);
+        // Sinalizar conclusão no console
         console.log('Carregamento inicial concluído com sucesso');
       } catch (error) {
         console.error('Erro no carregamento inicial:', error);
