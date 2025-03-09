@@ -1,5 +1,4 @@
 import { supabase } from './supabase';
-import { PostgrestError } from '@supabase/supabase-js';
 
 // Interface para definir a estrutura de um Profissional
 export interface Professional {
@@ -13,6 +12,26 @@ export interface Professional {
   birthDate: string;
   workHours: string;
   workCity: string;
+  salary: string;
+  address: string;
+  phone: string;
+  email: string | undefined;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// Tipo para representar um profissional no formato do Supabase (snake_case)
+export interface SupabaseProfessional {
+  id: string;
+  name: string;
+  role: string;
+  status: 'active' | 'inactive' | 'vacation';
+  start_date: string;
+  avatar_url?: string;
+  cpf: string;
+  birth_date: string;
+  work_hours: string;
+  work_city: string;
   salary: string;
   address: string;
   phone: string;
@@ -30,6 +49,49 @@ export interface ProfessionalResponse {
 export interface SingleProfessionalResponse {
   data: Professional | null;
   error: Error | null;
+}
+
+// Função para converter do formato do Supabase para o formato da app
+export function convertFromSupabaseProfessional(professional: SupabaseProfessional): Professional {
+  return {
+    id: professional.id,
+    name: professional.name,
+    role: professional.role,
+    status: professional.status,
+    startDate: professional.start_date,
+    avatarUrl: professional.avatar_url,
+    cpf: professional.cpf,
+    birthDate: professional.birth_date,
+    workHours: professional.work_hours,
+    workCity: professional.work_city,
+    salary: professional.salary,
+    address: professional.address,
+    phone: professional.phone,
+    email: professional.email,
+    created_at: professional.created_at,
+    updated_at: professional.updated_at,
+  };
+}
+
+// Função para converter do formato da app para o formato do Supabase
+export function convertToSupabaseProfessional(
+  professional: Omit<Professional, 'id' | 'created_at' | 'updated_at'>
+): Omit<SupabaseProfessional, 'id' | 'created_at' | 'updated_at'> {
+  return {
+    name: professional.name,
+    role: professional.role,
+    status: professional.status,
+    start_date: professional.startDate,
+    avatar_url: professional.avatarUrl,
+    cpf: professional.cpf,
+    birth_date: professional.birthDate,
+    work_hours: professional.workHours,
+    work_city: professional.workCity,
+    salary: professional.salary,
+    address: professional.address,
+    phone: professional.phone,
+    email: professional.email || '',
+  };
 }
 
 // Obter todos os profissionais
@@ -51,13 +113,22 @@ export async function getAllProfessionals(): Promise<ProfessionalResponse> {
     
     if (result.error) {
       console.error('Erro ao buscar profissionais:', result.error);
-    } else {
-      console.log(`Recebidos ${result.data?.length || 0} profissionais`);
+      return { 
+        data: null, 
+        error: result.error 
+      };
     }
     
+    console.log(`Recebidos ${result.data?.length || 0} profissionais`);
+    
+    // Converter dados de snake_case para camelCase
+    const convertedData = result.data?.map(professional => 
+      convertFromSupabaseProfessional(professional as unknown as SupabaseProfessional)
+    ) || null;
+    
     return { 
-      data: result.data as Professional[] | null, 
-      error: result.error 
+      data: convertedData, 
+      error: null 
     };
   } catch (error) {
     console.error('Exceção ao buscar profissionais:', error);
@@ -88,13 +159,22 @@ export async function getProfessional(id: string): Promise<SingleProfessionalRes
     
     if (result.error) {
       console.error(`Erro ao buscar profissional ${id}:`, result.error);
-    } else {
-      console.log(`Profissional encontrado: ${result.data?.name}`);
+      return { 
+        data: null, 
+        error: result.error 
+      };
     }
     
+    console.log(`Profissional encontrado: ${result.data?.name}`);
+    
+    // Converter de snake_case para camelCase
+    const convertedData = result.data 
+      ? convertFromSupabaseProfessional(result.data as unknown as SupabaseProfessional)
+      : null;
+    
     return { 
-      data: result.data as Professional | null, 
-      error: result.error 
+      data: convertedData, 
+      error: null 
     };
   } catch (error) {
     console.error(`Exceção ao buscar profissional ${id}:`, error);
@@ -117,11 +197,14 @@ export async function addProfessional(professionalData: Omit<Professional, 'id' 
       return { data: null, error };
     }
     
+    // Converter para o formato do Supabase
+    const supabaseData = convertToSupabaseProfessional(professionalData);
+    
     const startTime = performance.now();
     
     const result = await supabase
       .from('professionals')
-      .insert(professionalData)
+      .insert(supabaseData)
       .select();
     
     const endTime = performance.now();
@@ -135,11 +218,17 @@ export async function addProfessional(professionalData: Omit<Professional, 'id' 
         status: result.status,
         statusText: result.statusText 
       });
-    } else {
-      console.log(`Profissional adicionado com sucesso: ${result.data?.[0]?.name}`);
+      return { data: null, error: result.error };
     }
     
-    return { data: result.data, error: result.error };
+    console.log(`Profissional adicionado com sucesso: ${result.data?.[0]?.name}`);
+    
+    // Converter dados retornados para o formato camelCase
+    const convertedData = result.data?.map(professional => 
+      convertFromSupabaseProfessional(professional as unknown as SupabaseProfessional)
+    ) || null;
+    
+    return { data: convertedData, error: null };
   } catch (error) {
     console.error('Exceção ao adicionar profissional:', error);
     return {
@@ -161,11 +250,28 @@ export async function updateProfessional(id: string, professionalData: Partial<P
       return { data: null, error };
     }
     
+    // Converter para o formato do Supabase
+    const supabaseData: Partial<SupabaseProfessional> = {};
+    
+    if (professionalData.name !== undefined) supabaseData.name = professionalData.name;
+    if (professionalData.role !== undefined) supabaseData.role = professionalData.role;
+    if (professionalData.status !== undefined) supabaseData.status = professionalData.status;
+    if (professionalData.startDate !== undefined) supabaseData.start_date = professionalData.startDate;
+    if (professionalData.avatarUrl !== undefined) supabaseData.avatar_url = professionalData.avatarUrl;
+    if (professionalData.cpf !== undefined) supabaseData.cpf = professionalData.cpf;
+    if (professionalData.birthDate !== undefined) supabaseData.birth_date = professionalData.birthDate;
+    if (professionalData.workHours !== undefined) supabaseData.work_hours = professionalData.workHours;
+    if (professionalData.workCity !== undefined) supabaseData.work_city = professionalData.workCity;
+    if (professionalData.salary !== undefined) supabaseData.salary = professionalData.salary;
+    if (professionalData.address !== undefined) supabaseData.address = professionalData.address;
+    if (professionalData.phone !== undefined) supabaseData.phone = professionalData.phone;
+    if (professionalData.email !== undefined) supabaseData.email = professionalData.email || '';
+    
     const startTime = performance.now();
     
     const result = await supabase
       .from('professionals')
-      .update(professionalData)
+      .update(supabaseData)
       .eq('id', id)
       .select();
     
@@ -180,11 +286,17 @@ export async function updateProfessional(id: string, professionalData: Partial<P
         status: result.status,
         statusText: result.statusText 
       });
-    } else {
-      console.log(`Profissional atualizado com sucesso: ${result.data?.[0]?.name}`);
+      return { data: null, error: result.error };
     }
     
-    return { data: result.data, error: result.error };
+    console.log(`Profissional atualizado com sucesso: ${result.data?.[0]?.name}`);
+    
+    // Converter dados retornados para o formato camelCase
+    const convertedData = result.data?.map(professional => 
+      convertFromSupabaseProfessional(professional as unknown as SupabaseProfessional)
+    ) || null;
+    
+    return { data: convertedData, error: null };
   } catch (error) {
     console.error(`Exceção ao atualizar profissional ${id}:`, error);
     return {
@@ -220,11 +332,12 @@ export async function removeProfessional(id: string): Promise<{ error: Error | n
     
     if (error) {
       console.error(`Erro ao remover profissional ${id}:`, error);
-    } else {
-      console.log(`Profissional removido com sucesso`);
+      return { error };
     }
     
-    return { error };
+    console.log(`Profissional removido com sucesso`);
+    
+    return { error: null };
   } catch (error) {
     console.error(`Exceção ao remover profissional ${id}:`, error);
     return {

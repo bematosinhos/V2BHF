@@ -1,29 +1,11 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import * as authService from '../lib/auth'
-import * as professionalService from '../lib/professionals'
-import * as timeRecordService from '../lib/time-records'
+import * as professionalService from '@/lib/professionals'
+import * as timeRecordService from '@/lib/time-records'
+import { SupabaseProfessional, convertFromSupabaseProfessional, convertToSupabaseProfessional } from '@/lib/professionals'
 
 // Tipos para representar os dados do Supabase (snake_case)
-export interface SupabaseProfessional {
-  id: string
-  name: string
-  role: string
-  status: 'active' | 'inactive' | 'vacation'
-  start_date: string
-  avatar_url?: string
-  cpf: string
-  birth_date: string
-  work_hours: string
-  work_city: string
-  salary: string
-  address: string
-  phone: string
-  email: string
-  created_at?: string
-  updated_at?: string
-}
-
 export interface SupabaseTimeRecord {
   id: string
   professional_id: string
@@ -174,45 +156,6 @@ export const mockTimeRecords: TimeRecord[] = [
 ]
 
 // Funções de conversão entre snake_case e camelCase
-const convertToSupabaseProfessional = (
-  professional: Omit<Professional, 'id'>,
-): Omit<SupabaseProfessional, 'id' | 'created_at' | 'updated_at'> => {
-  return {
-    name: professional.name,
-    role: professional.role,
-    status: professional.status,
-    start_date: professional.startDate,
-    avatar_url: professional.avatarUrl,
-    cpf: professional.cpf,
-    birth_date: professional.birthDate,
-    work_hours: professional.workHours,
-    work_city: professional.workCity,
-    salary: professional.salary,
-    address: professional.address,
-    phone: professional.phone,
-    email: professional.email ?? '',
-  }
-}
-
-const convertToAppProfessional = (professional: SupabaseProfessional): Professional => {
-  return {
-    id: professional.id,
-    name: professional.name,
-    role: professional.role,
-    status: professional.status,
-    startDate: professional.start_date,
-    avatarUrl: professional.avatar_url,
-    cpf: professional.cpf,
-    birthDate: professional.birth_date,
-    workHours: professional.work_hours,
-    workCity: professional.work_city,
-    salary: professional.salary,
-    address: professional.address,
-    phone: professional.phone,
-    email: professional.email,
-  }
-}
-
 const convertToSupabaseTimeRecord = (
   record: Omit<TimeRecord, 'id'>,
 ): Omit<SupabaseTimeRecord, 'id' | 'created_at' | 'updated_at'> => {
@@ -287,20 +230,16 @@ export const useAppStore = create<AppState>()(
           if (error) throw error
 
           if (data) {
-            // Converter os nomes das colunas de snake_case para camelCase
-            const formattedData = data.map((p) =>
-              convertToAppProfessional(p as SupabaseProfessional),
-            )
-
-            set({ professionals: formattedData })
+            // Os dados já estão convertidos pelo serviço
+            set({ professionals: data })
 
             // Se não houver profissional selecionado e houver profissionais, selecione o primeiro
             const { selectedProfessionalId } = get()
-            if (!selectedProfessionalId && formattedData.length > 0) {
-              set({ selectedProfessionalId: formattedData[0].id })
+            if (!selectedProfessionalId && data.length > 0) {
+              set({ selectedProfessionalId: data[0].id })
             }
 
-            return formattedData
+            return data
           }
           return []
         } catch (error) {
@@ -323,15 +262,13 @@ export const useAppStore = create<AppState>()(
           // Registrar tentativa de cadastro
           console.log('Tentando adicionar profissional:', professionalWithRequiredFields.name);
 
-          // Converter para o formato do Supabase (snake_case)
-          const professionalData = convertToSupabaseProfessional(professionalWithRequiredFields)
-
           console.log('Enviando dados para Supabase...');
           
           // Registrar o momento de início da operação para calcular o tempo total
           const startTime = performance.now();
           
-          const { data, error } = await professionalService.addProfessional(professionalData)
+          // O serviço já faz a conversão, não precisamos converter aqui
+          const { data, error } = await professionalService.addProfessional(professionalWithRequiredFields);
           
           // Calcular tempo da operação
           const endTime = performance.now();
@@ -351,8 +288,8 @@ export const useAppStore = create<AppState>()(
           console.log('Dados recebidos do Supabase:', data);
 
           if (data?.[0]) {
-            // Converter de volta para camelCase
-            const newProfessional = convertToAppProfessional(data[0] as SupabaseProfessional)
+            // Os dados já vêm convertidos do serviço
+            const newProfessional = data[0];
 
             console.log('Profissional adicionado com sucesso:', newProfessional.name);
 
@@ -378,28 +315,13 @@ export const useAppStore = create<AppState>()(
           // Registrar tentativa de atualização
           console.log('Tentando atualizar profissional:', id);
 
-          // Converter camelCase para snake_case para o Supabase
-          const updateData: Partial<SupabaseProfessional> = {}
-          if (updates.name !== undefined) updateData.name = updates.name
-          if (updates.role !== undefined) updateData.role = updates.role
-          if (updates.status !== undefined) updateData.status = updates.status
-          if (updates.startDate !== undefined) updateData.start_date = updates.startDate
-          if (updates.avatarUrl !== undefined) updateData.avatar_url = updates.avatarUrl
-          if (updates.cpf !== undefined) updateData.cpf = updates.cpf
-          if (updates.birthDate !== undefined) updateData.birth_date = updates.birthDate
-          if (updates.workHours !== undefined) updateData.work_hours = updates.workHours
-          if (updates.workCity !== undefined) updateData.work_city = updates.workCity
-          if (updates.salary !== undefined) updateData.salary = updates.salary
-          if (updates.address !== undefined) updateData.address = updates.address
-          if (updates.phone !== undefined) updateData.phone = updates.phone
-          if (updates.email !== undefined) updateData.email = updates.email
-
           console.log('Enviando dados para Supabase...');
           
           // Registrar o momento de início da operação para calcular o tempo total
           const startTime = performance.now();
           
-          const { data, error } = await professionalService.updateProfessional(id, updateData)
+          // O serviço já faz a conversão, não precisamos converter aqui
+          const { data, error } = await professionalService.updateProfessional(id, updates);
           
           // Calcular tempo da operação
           const endTime = performance.now();
@@ -417,7 +339,8 @@ export const useAppStore = create<AppState>()(
           }
 
           if (data?.[0]) {
-            const updatedProfessional = convertToAppProfessional(data[0] as SupabaseProfessional)
+            // Os dados já vêm convertidos do serviço
+            const updatedProfessional = data[0];
 
             console.log('Profissional atualizado com sucesso:', updatedProfessional.name);
 
