@@ -718,6 +718,27 @@ const SchedulePage: FC = () => {
       
       console.log('Alterações pendentes:', pendingChanges);
 
+      // Verificar se há profissionais selecionados
+      const activeProfessionals = professionals.filter(p => p.status === 'active');
+      if (activeProfessionals.length === 0) {
+        throw new Error('Não há profissionais ativos para salvar na escala');
+      }
+
+      // Verificar se a tabela professionals existe e contém registros
+      const { data: professionalsCheck, error: professionalCheckError } = await supabase
+        .from('professionals')
+        .select('id')
+        .limit(1);
+        
+      if (professionalCheckError) {
+        console.error('Erro ao verificar tabela de profissionais:', professionalCheckError);
+        throw new Error(`Erro na verificação da tabela de profissionais: ${professionalCheckError.message}`);
+      }
+      
+      if (!professionalsCheck || professionalsCheck.length === 0) {
+        throw new Error('A tabela de profissionais parece estar vazia. Cadastre profissionais antes de salvar uma escala.');
+      }
+
       // Primeiro, buscar os registros existentes (para não perder dados)
       const { data: existingData, error: fetchError } = await supabase
         .from('schedules')
@@ -756,7 +777,13 @@ const SchedulePage: FC = () => {
       }> = [];
       
       // Para cada profissional ativo
-      professionals.filter(p => p.status === 'active').forEach(professional => {
+      activeProfessionals.forEach(professional => {
+        // Verificar se o ID do profissional é válido
+        if (!professional.id || typeof professional.id !== 'string') {
+          console.error('ID de profissional inválido:', professional);
+          return; // Pular este profissional
+        }
+        
         // Para cada dia da semana
         weekDays.forEach(day => {
           const dateKey = format(day, 'yyyy-MM-dd');
@@ -765,8 +792,8 @@ const SchedulePage: FC = () => {
           // Obter dados do estado pendingChanges ou usar valores padrão
           const dayType = selectedTypes[cellKey] || getDayType(day, []);
           
-          // Não salvar dias de folga
-          if (dayType === 'folga') return;
+          // Não salvar dias de folga - isso pode ser um problema se a folga for um update
+          // if (dayType === 'folga') return;
           
           const startTimeKey = `start_${cellKey}`;
           const endTimeKey = `end_${cellKey}`;
@@ -776,9 +803,9 @@ const SchedulePage: FC = () => {
           
           // Validar os valores de horário antes de usá-los
           let startTime = pendingChanges[startTimeKey] || 
-                         (existingRecord ? existingRecord.start_time : '08:00');
+                           (existingRecord ? existingRecord.start_time : '08:00');
           let endTime = pendingChanges[endTimeKey] || 
-                       (existingRecord ? existingRecord.end_time : '17:00');
+                         (existingRecord ? existingRecord.end_time : '17:00');
           
           // Certificar-se de que os horários estão no formato correto (HH:MM)
           if (!startTime || typeof startTime !== 'string' || !startTime.match(/^\d{1,2}:\d{2}$/)) {
@@ -800,6 +827,7 @@ const SchedulePage: FC = () => {
             balance = 0; // Valor padrão em caso de erro
           }
           
+          // Garantir que todos os campos obrigatórios tenham valores válidos
           const newRecord = {
             professional_id: professional.id,
             date: dateKey,
@@ -828,28 +856,72 @@ const SchedulePage: FC = () => {
       
       console.log(`Preparados ${scheduleData.length} registros para inserção/atualização`);
       
-      if (scheduleData.length > 0) {
-        // Log para depuração - mostrar os primeiros 2 registros que serão salvos
-        console.log('Amostra dos dados a serem salvos:', scheduleData.slice(0, 2));
-        
-        // Usar upsert para inserir ou atualizar registros
-        const { data, error: upsertError } = await supabase
-          .from('schedules')
-          .upsert(scheduleData)
-          .select();
-          
-        if (upsertError) {
-          console.error('Erro ao inserir/atualizar dados:', upsertError);
-          throw new Error(`Erro ao salvar no Supabase: ${upsertError.message || 'Sem detalhes'}`);
-        }
-        
-        console.log(`Inseridos/atualizados ${data?.length || 0} registros com sucesso`);
-        
-        // NOVO: Recarregar os dados após salvar para atualizar a interface
-        await loadScheduleFromSupabase();
+      if (scheduleData.length === 0) {
+        throw new Error('Nenhum registro válido para salvar. Verifique se há profissionais ativos.');
       }
       
-      toast.success('Escala salva com sucesso no Supabase!');
+      // Log para depuração - mostrar os primeiros 2 registros que serão salvos
+      console.log('Amostra dos dados a serem salvos:', scheduleData.slice(0, 2));
+      
+      // Tentar inserir em lotes menores para identificar registros problemáticos
+      const BATCH_SIZE = 10;
+      let successCount = 0;
+      
+      for (let i = 0; i < scheduleData.length; i += BATCH_SIZE) {
+        const batch = scheduleData.slice(i, i + BATCH_SIZE);
+        console.log(`Processando lote ${i/BATCH_SIZE + 1} com ${batch.length} registros`);
+        
+        try {
+          const { data, error: upsertError } = await supabase
+            .from('schedules')
+            .upsert(batch)
+            .select();
+            
+          if (upsertError) {
+            console.error(`Erro ao processar lote ${i/BATCH_SIZE + 1}:`, upsertError);
+            throw new Error(`Erro ao salvar no Supabase (lote ${i/BATCH_SIZE + 1}): ${upsertError.message || 'Sem detalhes'}`);
+          }
+          
+          successCount += data?.length || 0;
+          console.log(`Lote ${i/BATCH_SIZE + 1} processado com sucesso: ${data?.length || 0} registros`);
+        } catch (error) {
+          console.error(`Erro ao processar lote ${i/BATCH_SIZE + 1}:`, error);
+          
+          // Tentar identificar registro problemático processando um por um
+          console.log('Tentando identificar registro problemático...');
+          for (let j = 0; j < batch.length; j++) {
+            try {
+              const { error: singleError } = await supabase
+                .from('schedules')
+                .upsert([batch[j]])
+                .select();
+                
+              if (singleError) {
+                console.error(`Registro problemático encontrado (índice ${i + j}):`, batch[j], singleError);
+              } else {
+                successCount++;
+              }
+            } catch (singleItemError) {
+              console.error(`Erro no registro ${i + j}:`, batch[j], singleItemError);
+            }
+          }
+          
+          // Não interromper o processamento, continuar com próximo lote
+        }
+      }
+      
+      console.log(`Total de registros salvos com sucesso: ${successCount} de ${scheduleData.length}`);
+      
+      if (successCount === 0) {
+        throw new Error('Nenhum registro foi salvo com sucesso. Verifique os logs para mais detalhes.');
+      } else if (successCount < scheduleData.length) {
+        toast.warning(`Atenção: Apenas ${successCount} de ${scheduleData.length} registros foram salvos.`);
+      } else {
+        toast.success('Escala salva com sucesso no Supabase!');
+      }
+      
+      // NOVO: Recarregar os dados após salvar para atualizar a interface
+      await loadScheduleFromSupabase();
       setLastSavedTime(new Date());
       
     } catch (error) {
