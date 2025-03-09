@@ -634,7 +634,7 @@ const SchedulePage: FC = () => {
     };
   }, [hasUnsavedChanges]);
 
-  // Melhorar a função saveScheduleToSupabase para salvar os dados corretamente
+  // Modificar a função saveScheduleToSupabase para remover a verificação da tabela
   const saveScheduleToSupabase = async () => {
     try {
       setIsSaving(true);
@@ -649,16 +649,6 @@ const SchedulePage: FC = () => {
       
       console.log('Alterações pendentes:', pendingChanges);
 
-      // Verificar se a tabela existe
-      const { error: tableCheckError } = await supabase
-        .from('schedules')
-        .select('count(*)', { count: 'exact', head: true });
-
-      if (tableCheckError) {
-        console.error('Erro ao verificar tabela de escalas:', tableCheckError);
-        throw new Error(`A tabela 'schedules' não existe ou você não tem permissão para acessá-la: ${tableCheckError.message}`);
-      }
-      
       // Primeiro, buscar os registros existentes (para não perder dados)
       const { data: existingData, error: fetchError } = await supabase
         .from('schedules')
