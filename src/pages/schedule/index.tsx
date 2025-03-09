@@ -92,8 +92,9 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
-// Adicionar definição explícita do tipo Schedule
-interface Schedule {
+// Modificar a definição do tipo Schedule para estar sendo utilizada
+// Alterando de interface para export type para permitir seu uso em outros arquivos
+export type Schedule = {
   professionalId: string;
   date: string;
   dayType: DayType;
@@ -756,7 +757,7 @@ const SchedulePage: FC = () => {
       });
 
       // Verificar se a tabela existe
-      const { data: tableExists, error: tableCheckError } = await supabase
+      const { error: tableCheckError } = await supabase
         .from('schedules')
         .select('count(*)', { count: 'exact', head: true });
 
