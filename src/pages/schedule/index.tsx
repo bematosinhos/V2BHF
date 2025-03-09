@@ -494,7 +494,12 @@ const SchedulePage: FC = () => {
     
     setPendingChanges(prev => ({
       ...prev,
-      [key]: value
+      [key]: value,
+      // Adicionando também no formato que os inputs esperam
+      [dateString]: {
+        ...(prev[dateString] || {}),
+        [isStart ? 'checkIn' : 'checkOut']: value
+      }
     }));
     
     console.log(`Alteração pendente: ${key} = ${value}`);
@@ -780,7 +785,9 @@ const SchedulePage: FC = () => {
   // Melhorar a função loadScheduleFromSupabase para preservar alterações pendentes
   const loadScheduleFromSupabase = async () => {
     try {
-      setIsSaving(true);
+      // Não ativar isSaving durante o carregamento normal
+      // setIsSaving(true);
+      
       const startOfWeek = startOfISOWeek(currentDate);
       const endOfWeek = endOfISOWeek(currentDate);
       
@@ -840,7 +847,8 @@ const SchedulePage: FC = () => {
       console.error('Erro ao carregar escala:', error);
       toast.error('Erro ao carregar dados da escala.');
     } finally {
-      setIsSaving(false);
+      // Não desativar isSaving aqui, já que não o ativamos
+      // setIsSaving(false);
     }
   };
 
@@ -1127,7 +1135,15 @@ const SchedulePage: FC = () => {
                             <Input
                               type="time"
                               className="h-8 w-24 dark:border-gray-600 dark:bg-gray-800"
-                              value={pendingChanges[dateString]?.checkIn || record?.checkIn || defaultCheckIn}
+                              value={
+                                // Tentar buscar do formato Supabase primeiro
+                                pendingChanges[`start_${selectedProfessionalId}_${format(day, 'yyyy-MM-dd')}`] || 
+                                // Depois no formato antigo
+                                pendingChanges[dateString]?.checkIn || 
+                                // Por último, do registro ou valor padrão
+                                record?.checkIn || 
+                                defaultCheckIn
+                              }
                               onChange={(e) => updateTime(day, true, e.target.value)}
                               disabled={dayType !== 'normal' || !isCurrentMonth}
                             />
@@ -1136,7 +1152,15 @@ const SchedulePage: FC = () => {
                             <Input
                               type="time"
                               className="h-8 w-24 dark:border-gray-600 dark:bg-gray-800"
-                              value={pendingChanges[dateString]?.checkOut || record?.checkOut || defaultCheckOut}
+                              value={
+                                // Tentar buscar do formato Supabase primeiro
+                                pendingChanges[`end_${selectedProfessionalId}_${format(day, 'yyyy-MM-dd')}`] || 
+                                // Depois no formato antigo
+                                pendingChanges[dateString]?.checkOut || 
+                                // Por último, do registro ou valor padrão
+                                record?.checkOut || 
+                                defaultCheckOut
+                              }
                               onChange={(e) => updateTime(day, false, e.target.value)}
                               disabled={dayType !== 'normal' || !isCurrentMonth}
                             />
@@ -1263,7 +1287,15 @@ const SchedulePage: FC = () => {
                             <Input
                               type="time"
                               className="h-8 text-sm dark:border-gray-600 dark:bg-gray-800"
-                              value={pendingChanges[dateString]?.checkIn || record?.checkIn || defaultCheckIn}
+                              value={
+                                // Tentar buscar do formato Supabase primeiro
+                                pendingChanges[`start_${selectedProfessionalId}_${format(day, 'yyyy-MM-dd')}`] || 
+                                // Depois no formato antigo
+                                pendingChanges[dateString]?.checkIn || 
+                                // Por último, do registro ou valor padrão
+                                record?.checkIn || 
+                                defaultCheckIn
+                              }
                               onChange={(e) => updateTime(day, true, e.target.value)}
                               disabled={!isCurrentMonth}
                             />
@@ -1273,7 +1305,15 @@ const SchedulePage: FC = () => {
                             <Input
                               type="time"
                               className="h-8 text-sm dark:border-gray-600 dark:bg-gray-800"
-                              value={pendingChanges[dateString]?.checkOut || record?.checkOut || defaultCheckOut}
+                              value={
+                                // Tentar buscar do formato Supabase primeiro
+                                pendingChanges[`end_${selectedProfessionalId}_${format(day, 'yyyy-MM-dd')}`] || 
+                                // Depois no formato antigo
+                                pendingChanges[dateString]?.checkOut || 
+                                // Por último, do registro ou valor padrão
+                                record?.checkOut || 
+                                defaultCheckOut
+                              }
                               onChange={(e) => updateTime(day, false, e.target.value)}
                               disabled={!isCurrentMonth}
                             />
