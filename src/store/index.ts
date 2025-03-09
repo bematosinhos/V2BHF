@@ -1,11 +1,29 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import * as authService from '../lib/auth'
-import * as professionalService from '@/lib/professionals'
-import * as timeRecordService from '@/lib/time-records'
-import { SupabaseProfessional, convertFromSupabaseProfessional, convertToSupabaseProfessional } from '@/lib/professionals'
+import * as professionalService from '../lib/professionals'
+import * as timeRecordService from '../lib/time-records'
 
 // Tipos para representar os dados do Supabase (snake_case)
+export interface SupabaseProfessional {
+  id: string
+  name: string
+  role: string
+  status: 'active' | 'inactive' | 'vacation'
+  start_date: string
+  avatar_url?: string
+  cpf: string
+  birth_date: string
+  work_hours: string
+  work_city: string
+  salary: string
+  address: string
+  phone: string
+  email: string
+  created_at?: string
+  updated_at?: string
+}
+
 export interface SupabaseTimeRecord {
   id: string
   professional_id: string
@@ -85,9 +103,6 @@ interface AppState {
   removeTimeRecord: (id: string) => Promise<void>
   getTimeRecordsForProfessional: (professionalId: string) => TimeRecord[]
   getTimeRecordsForDate: (date: string) => Promise<void>
-
-  // Obter profissionais pendentes do armazenamento local
-  getPendingProfessionals: () => {pendingId: string; timestamp: string; professionalData: Omit<Professional, 'id'>}[]
 }
 
 // Exportamos os dados mock para uso na migração, se necessário
@@ -156,6 +171,45 @@ export const mockTimeRecords: TimeRecord[] = [
 ]
 
 // Funções de conversão entre snake_case e camelCase
+const convertToSupabaseProfessional = (
+  professional: Omit<Professional, 'id'>,
+): Omit<SupabaseProfessional, 'id' | 'created_at' | 'updated_at'> => {
+  return {
+    name: professional.name,
+    role: professional.role,
+    status: professional.status,
+    start_date: professional.startDate,
+    avatar_url: professional.avatarUrl,
+    cpf: professional.cpf,
+    birth_date: professional.birthDate,
+    work_hours: professional.workHours,
+    work_city: professional.workCity,
+    salary: professional.salary,
+    address: professional.address,
+    phone: professional.phone,
+    email: professional.email ?? '',
+  }
+}
+
+const convertToAppProfessional = (professional: SupabaseProfessional): Professional => {
+  return {
+    id: professional.id,
+    name: professional.name,
+    role: professional.role,
+    status: professional.status,
+    startDate: professional.start_date,
+    avatarUrl: professional.avatar_url,
+    cpf: professional.cpf,
+    birthDate: professional.birth_date,
+    workHours: professional.work_hours,
+    workCity: professional.work_city,
+    salary: professional.salary,
+    address: professional.address,
+    phone: professional.phone,
+    email: professional.email,
+  }
+}
+
 const convertToSupabaseTimeRecord = (
   record: Omit<TimeRecord, 'id'>,
 ): Omit<SupabaseTimeRecord, 'id' | 'created_at' | 'updated_at'> => {
@@ -230,16 +284,20 @@ export const useAppStore = create<AppState>()(
           if (error) throw error
 
           if (data) {
-            // Os dados já estão convertidos pelo serviço
-            set({ professionals: data })
+            // Converter os nomes das colunas de snake_case para camelCase
+            const formattedData = data.map((p) =>
+              convertToAppProfessional(p as SupabaseProfessional),
+            )
+
+            set({ professionals: formattedData })
 
             // Se não houver profissional selecionado e houver profissionais, selecione o primeiro
             const { selectedProfessionalId } = get()
-            if (!selectedProfessionalId && data.length > 0) {
-              set({ selectedProfessionalId: data[0].id })
+            if (!selectedProfessionalId && formattedData.length > 0) {
+              set({ selectedProfessionalId: formattedData[0].id })
             }
 
-            return data
+            return formattedData
           }
           return []
         } catch (error) {
@@ -252,6 +310,10 @@ export const useAppStore = create<AppState>()(
       addProfessional: async (professional) => {
         try {
           set({ isLoading: true })
+          console.log('Iniciando processo de adição de profissional no store', { 
+            name: professional.name, 
+            cpf: professional.cpf?.substring(0, 5) + '***' // Log seguro
+          });
 
           // Garantir que todos os campos obrigatórios estejam presentes
           const professionalWithRequiredFields = {
@@ -259,52 +321,53 @@ export const useAppStore = create<AppState>()(
             email: professional.email ?? '',
           }
 
-          // Registrar tentativa de cadastro
-          console.log('Tentando adicionar profissional:', professionalWithRequiredFields.name);
+          // Converter para o formato do Supabase (snake_case)
+          const professionalData = convertToSupabaseProfessional(professionalWithRequiredFields)
 
-          console.log('Enviando dados para Supabase...');
-          
-          // Registrar o momento de início da operação para calcular o tempo total
-          const startTime = performance.now();
-          
-          // O serviço já faz a conversão, não precisamos converter aqui
-          const { data, error } = await professionalService.addProfessional(professionalWithRequiredFields);
-          
-          // Calcular tempo da operação
-          const endTime = performance.now();
-          const operationTime = Math.round(endTime - startTime);
-          console.log(`Operação completada em ${operationTime}ms`);
+          console.log('Enviando dados para o serviço de profissionais');
+          const { data, error } = await professionalService.addProfessional(professionalData)
           
           if (error) {
-            console.error('Erro retornado pelo Supabase:', error);
-            throw error;
+            console.error('Erro retornado pelo serviço de profissionais:', { 
+              message: error.message,
+              code: error.code,
+              details: error.details
+            });
+            
+            // Tratamento de erros específicos
+            if (error.code === '23505') {
+              throw new Error('Este profissional já existe no sistema. Verifique CPF ou email.');
+            } else if (error.code === 'TIMEOUT' || error.message.includes('tempo limite')) {
+              throw new Error('A operação demorou muito tempo. Verifique sua conexão e tente novamente.');
+            } else if (error.code === 'MAX_RETRIES_EXCEEDED') {
+              throw new Error('Não foi possível completar a operação após várias tentativas. Tente novamente mais tarde.');
+            } else {
+              throw error;
+            }
           }
-
-          if (!data || data.length === 0) {
-            console.error('Nenhum dado retornado pelo Supabase');
-            throw new Error('Falha ao cadastrar profissional: nenhum dado retornado');
-          }
-
-          console.log('Dados recebidos do Supabase:', data);
 
           if (data?.[0]) {
-            // Os dados já vêm convertidos do serviço
-            const newProfessional = data[0];
-
-            console.log('Profissional adicionado com sucesso:', newProfessional.name);
+            console.log('Profissional adicionado com sucesso, atualizando store');
+            // Converter de volta para camelCase
+            const newProfessional = convertToAppProfessional(data[0] as SupabaseProfessional)
 
             set((state) => ({
               professionals: [...state.professionals, newProfessional],
             }))
 
             return newProfessional
+          } else {
+            console.warn('Resposta sem dados ao adicionar profissional');
+            throw new Error('Não foi possível adicionar o profissional. Tente novamente.');
           }
-          console.error('Dados retornados pelo Supabase são inválidos');
-          return null
         } catch (error) {
-          console.error('Erro ao adicionar profissional:', error)
-          throw error
+          console.error('Erro ao adicionar profissional (store):', error);
+          // Rethrow para que a UI possa tratar o erro
+          throw error instanceof Error 
+            ? error 
+            : new Error('Erro desconhecido ao adicionar profissional');
         } finally {
+          console.log('Finalizando operação de adição de profissional');
           set({ isLoading: false })
         }
       },
@@ -312,47 +375,37 @@ export const useAppStore = create<AppState>()(
         try {
           set({ isLoading: true })
 
-          // Registrar tentativa de atualização
-          console.log('Tentando atualizar profissional:', id);
+          // Converter camelCase para snake_case para o Supabase
+          const updateData: Partial<SupabaseProfessional> = {}
+          if (updates.name !== undefined) updateData.name = updates.name
+          if (updates.role !== undefined) updateData.role = updates.role
+          if (updates.status !== undefined) updateData.status = updates.status
+          if (updates.startDate !== undefined) updateData.start_date = updates.startDate
+          if (updates.avatarUrl !== undefined) updateData.avatar_url = updates.avatarUrl
+          if (updates.cpf !== undefined) updateData.cpf = updates.cpf
+          if (updates.birthDate !== undefined) updateData.birth_date = updates.birthDate
+          if (updates.workHours !== undefined) updateData.work_hours = updates.workHours
+          if (updates.workCity !== undefined) updateData.work_city = updates.workCity
+          if (updates.salary !== undefined) updateData.salary = updates.salary
+          if (updates.address !== undefined) updateData.address = updates.address
+          if (updates.phone !== undefined) updateData.phone = updates.phone
+          if (updates.email !== undefined) updateData.email = updates.email
 
-          console.log('Enviando dados para Supabase...');
-          
-          // Registrar o momento de início da operação para calcular o tempo total
-          const startTime = performance.now();
-          
-          // O serviço já faz a conversão, não precisamos converter aqui
-          const { data, error } = await professionalService.updateProfessional(id, updates);
-          
-          // Calcular tempo da operação
-          const endTime = performance.now();
-          const operationTime = Math.round(endTime - startTime);
-          console.log(`Operação completada em ${operationTime}ms`);
-          
-          if (error) {
-            console.error('Erro retornado pelo Supabase:', error);
-            throw error;
-          }
-
-          if (!data || data.length === 0) {
-            console.error('Nenhum dado retornado pelo Supabase');
-            throw new Error('Falha ao atualizar profissional: nenhum dado retornado');
-          }
+          const { data, error } = await professionalService.updateProfessional(id, updateData)
+          if (error) throw error
 
           if (data?.[0]) {
-            // Os dados já vêm convertidos do serviço
-            const updatedProfessional = data[0];
-
-            console.log('Profissional atualizado com sucesso:', updatedProfessional.name);
+            // Atualizar o estado local com os dados retornados
+            const updatedProfessional = convertToAppProfessional(data[0] as SupabaseProfessional)
 
             set((state) => ({
               professionals: state.professionals.map((p) =>
-                p.id === id ? updatedProfessional : p
+                p.id === id ? updatedProfessional : p,
               ),
             }))
 
             return updatedProfessional
           }
-          console.error('Dados retornados pelo Supabase são inválidos');
           return null
         } catch (error) {
           console.error('Erro ao atualizar profissional:', error)
@@ -496,17 +549,6 @@ export const useAppStore = create<AppState>()(
           }
         } catch (error) {
           console.error('Erro ao buscar registros para a data:', error)
-        }
-      },
-
-      // Obter profissionais pendentes do armazenamento local
-      getPendingProfessionals: () => {
-        try {
-          const pendingString = localStorage.getItem('bhf_pending_professionals') || '[]';
-          return JSON.parse(pendingString);
-        } catch (error) {
-          console.error('Erro ao recuperar profissionais pendentes:', error);
-          return [];
         }
       },
     }),

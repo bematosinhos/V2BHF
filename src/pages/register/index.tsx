@@ -115,11 +115,11 @@ const RegisterPage: FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [missingFields, setMissingFields] = useState<string[]>([])
 
-  const { professionals, addProfessional, updateProfessional, removeProfessional, fetchProfessionals } =
+  const { professionals, addProfessional, updateProfessional, removeProfessional } =
     useAppStore()
 
   // Encontrar o profissional a ser editado
-  const professionalToEdit = editId ? professionals.find((p: Professional) => p.id === editId) : null
+  const professionalToEdit = editId ? professionals.find((p) => p.id === editId) : null
 
   const form = useForm<ProfessionalFormValues>({
     resolver: zodResolver(professionalFormSchema),
@@ -182,76 +182,15 @@ const RegisterPage: FC = () => {
     }
   }, [professionalToEdit, form])
 
-  // Verificar se há campos duplicados na lista de profissionais
-  const checkDuplicates = async (professional: ProfessionalFormValues): Promise<boolean> => {
-    // Verifica se já existe algum profissional com o mesmo CPF ou email
-    const existingProfessionalWithCPF = professionals.find(
-      (p: Professional) => p.cpf === professional.cpf && p.id !== editId
-    )
-    
-    if (existingProfessionalWithCPF) {
-      toast.error(`Já existe um profissional cadastrado com o CPF ${professional.cpf}`);
-      return true;
-    }
-    
-    const existingProfessionalWithEmail = professionals.find(
-      (p: Professional) => p.email === professional.email && p.id !== editId
-    )
-    
-    if (existingProfessionalWithEmail) {
-      toast.error(`Já existe um profissional cadastrado com o email ${professional.email}`);
-      return true;
-    }
-    
-    return false;
-  };
-
-  // Função para executar operações com Supabase com reentativa automática
-  const executeWithRetry = async (operation: () => Promise<any>, maxAttempts = 5) => {
-    let attempt = 1;
-    let lastError = null;
-
-    while (attempt <= maxAttempts) {
-      try {
-        console.log(`Tentativa ${attempt} de ${maxAttempts}...`);
-        const result = await operation();
-        console.log('Operação concluída com sucesso');
-        return result;
-      } catch (error) {
-        lastError = error;
-        console.error(`Erro na tentativa ${attempt}:`, error);
-        
-        if (attempt < maxAttempts) {
-          // Backoff exponencial com jitter para evitar sobrecarga
-          const backoff = Math.min(Math.pow(2, attempt) * 500, 10000);
-          const jitter = Math.random() * 500;
-          const waitTime = backoff + jitter;
-          
-          console.log(`Aguardando ${waitTime}ms antes da próxima tentativa...`);
-          await new Promise(resolve => setTimeout(resolve, waitTime));
-          attempt++;
-        } else {
-          throw lastError;
-        }
-      }
-    }
-  };
-
   async function onSubmit(data: ProfessionalFormValues) {
-    // Verifica duplicatas antes de tentar cadastrar
-    const hasDuplicates = await checkDuplicates(data);
-    if (hasDuplicates) {
-      return;
-    }
-    
-    setIsSubmitting(true);
-    toast.loading(editId ? 'Salvando alterações...' : 'Cadastrando profissional...', {
-      id: 'saving-professional'
-    });
-
     try {
+      setIsSubmitting(true)
+      
+      // Mostrar toast de progresso
+      const loadingToast = toast.loading('Processando cadastro...');
+
       // Formatar o horário de trabalho
-      const formattedWorkHours = `${data.workStartTime}-${data.workEndTime}`;
+      const formattedWorkHours = `${data.workStartTime}-${data.workEndTime}`
 
       // Preparar os dados do profissional
       const professionalData: Omit<Professional, 'id'> = {
@@ -268,63 +207,48 @@ const RegisterPage: FC = () => {
         email: data.email,
         status: data.status,
         avatarUrl: professionalToEdit?.avatarUrl ?? '',
-      };
+      }
 
-      console.log('Iniciando operação:', editId ? 'Atualização' : 'Cadastro');
-      
+      // Criar timeout para garantir que a operação não fique travada
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Tempo limite excedido. Verifique sua conexão.')), 15000);
+      });
+
+      // Executar a operação com timeout
       if (editId) {
-        // Atualizar profissional existente com retry
-        await executeWithRetry(async () => {
-          console.log('Atualizando profissional:', editId);
-          const updatedProfessional = await updateProfessional(editId, professionalData);
-          if (!updatedProfessional) {
-            throw new Error('Falha ao atualizar profissional. Tente novamente.');
-          }
-          return updatedProfessional;
-        });
-        
-        toast.success('Profissional atualizado com sucesso!', {
-          id: 'saving-professional'
-        });
+        // Atualizar profissional existente
+        await Promise.race([updateProfessional(editId, professionalData), timeoutPromise]);
+        toast.dismiss(loadingToast);
+        toast.success('Profissional atualizado com sucesso!');
       } else {
-        // Adicionar novo profissional com retry
-        await executeWithRetry(async () => {
-          console.log('Adicionando novo profissional');
-          const newProfessional = await addProfessional(professionalData);
-          if (!newProfessional) {
-            throw new Error('Falha ao cadastrar profissional. Tente novamente.');
-          }
-          return newProfessional;
-        });
-        
-        toast.success('Profissional cadastrado com sucesso!', {
-          id: 'saving-professional'
-        });
-        
-        // Atualiza a lista de profissionais
-        await fetchProfessionals();
-        
-        // Limpar o formulário
+        // Adicionar novo profissional com timeout
+        await Promise.race([addProfessional(professionalData), timeoutPromise]);
+        toast.dismiss(loadingToast);
+        toast.success('Profissional cadastrado com sucesso!');
         form.reset(defaultValues);
       }
-      
-      // Redirecionar para a lista de profissionais após 1.5 segundos
-      setTimeout(() => {
-        navigate('/professionals');
-      }, 1500);
+
+      // Redirecionar para a lista de profissionais
+      void navigate('/professionals');
     } catch (error) {
-      console.error('Erro ao processar operação:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro inesperado. Tente novamente.';
-      toast.error(errorMessage, {
-        id: 'saving-professional'
-      });
+      // Identificar o tipo de erro
+      let errorMessage = 'Erro ao salvar profissional. Tente novamente.';
       
-      // Garantir que a lista de profissionais esteja atualizada
-      try {
-        await fetchProfessionals();
-      } catch (fetchError) {
-        console.error('Erro ao atualizar lista de profissionais:', fetchError);
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        
+        // Mensagens específicas para erros comuns
+        if (errorMessage.includes('tempo limite') || errorMessage.includes('timeout')) {
+          errorMessage = 'Tempo limite excedido. Verifique sua conexão com a internet.';
+        } else if (errorMessage.includes('uniqueness') || errorMessage.includes('já existe')) {
+          errorMessage = 'Este profissional já existe. Verifique os dados.';
+        } else if (errorMessage.includes('rede') || errorMessage.includes('network')) {
+          errorMessage = 'Erro de conexão com o servidor. Verifique sua internet.';
+        }
       }
+      
+      console.error('Erro ao salvar profissional:', error);
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -765,11 +689,12 @@ const RegisterPage: FC = () => {
                   <Button 
                     type="submit" 
                     disabled={isSubmitting}
+                    className={isSubmitting ? "opacity-80" : ""}
                   >
                     {isSubmitting ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        {editId ? 'Salvando...' : 'Cadastrando...'}
+                        {editId ? 'Salvando alterações...' : 'Cadastrando profissional...'}
                       </>
                     ) : editId ? (
                       'Salvar Alterações'
