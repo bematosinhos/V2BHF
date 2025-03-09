@@ -85,67 +85,74 @@ const ProfessionalDetailPage: FC = () => {
   }
 
   // Filtrar registros de ponto do profissional no período selecionado
-
-  // Calcular banco de horas
-  const calculateOvertimeBalance = () => {
-    if (!dateRange?.from || !dateRange?.to || !id) return 0;
+  
+  // Estado para armazenar os registros de escala do Supabase
+  const [scheduleRecords, setScheduleRecords] = useState<Array<{
+    id: string;
+    professional_id: string;
+    date: string;
+    day_type: string;
+    start_time: string;
+    end_time: string;
+    balance: number;
+    created_at: string;
+    updated_at: string;
+  }>>([]);
+  
+  // Função para buscar os registros de escala do Supabase
+  const loadScheduleRecordsFromSupabase = async () => {
+    if (!dateRange?.from || !dateRange?.to || !id) return;
     
-    const fromDate = dateRange.from;
-    const toDate = dateRange.to;
-    
-    // Filtrar os registros do período selecionado
-    const relevantRecords = timeRecords.filter(record => {
-      // Verificar se o registro pertence ao profissional atual
-      if (record.professionalId !== id) return false;
+    try {
+      const fromDate = format(dateRange.from, 'yyyy-MM-dd');
+      const toDate = format(dateRange.to, 'yyyy-MM-dd');
       
-      // Verificar se está dentro do período selecionado
-      const recordDate = new Date(record.date);
-      return recordDate >= fromDate && recordDate <= toDate;
-    });
+      // Buscar registros de escala do período selecionado
+      const { data, error } = await supabase
+        .from('schedules')
+        .select('*')
+        .eq('professional_id', id)
+        .gte('date', fromDate)
+        .lte('date', toDate);
+        
+      if (error) {
+        console.error('Erro ao buscar registros de escala:', error);
+        toast.error('Erro ao carregar dados de escala');
+        return;
+      }
+      
+      if (data) {
+        console.log(`Carregados ${data.length} registros de escala do Supabase`);
+        setScheduleRecords(data);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar registros de escala:', error);
+      toast.error('Erro ao carregar dados de escala');
+    }
+  };
+  
+  // Efeito para carregar registros de escala quando o período mudar
+  useEffect(() => {
+    if (dateRange?.from && dateRange?.to && id) {
+      loadScheduleRecordsFromSupabase();
+    }
+  }, [dateRange, id]);
+
+  // Calcular banco de horas com base nos registros da tabela schedules
+  const calculateOvertimeBalance = () => {
+    if (!dateRange?.from || !dateRange?.to || !id || scheduleRecords.length === 0) return 0;
     
     // Calcular a diferença entre horas trabalhadas e esperadas
-    let totalWorked = 0;
-    let totalExpected = 0;
+    let totalBalance = 0;
     
-    relevantRecords.forEach(record => {
-      // Verificar o tipo de registro
-      if (record.type === 'regular') {
-        // Dias normais: calcular horas trabalhadas
-        if (record.checkIn && record.checkOut) {
-          // Calcular horas trabalhadas
-          const checkInParts = record.checkIn.split(':');
-          const checkOutParts = record.checkOut.split(':');
-          
-          if (checkInParts.length === 2 && checkOutParts.length === 2) {
-            const startDate = new Date();
-            startDate.setHours(parseInt(checkInParts[0]), parseInt(checkInParts[1]), 0, 0);
-            
-            const endDate = new Date();
-            endDate.setHours(parseInt(checkOutParts[0]), parseInt(checkOutParts[1]), 0, 0);
-            
-            // Calcular a diferença em minutos, menos 1h de almoço
-            const minutesWorked = differenceInMinutes(endDate, startDate) - 60;
-            totalWorked += minutesWorked;
-          }
-        }
-        
-        // Se for dia normal, adicionar 8h (480 min) ao esperado
-        if (!record.notes?.includes('falta') && 
-            !record.notes?.includes('folga') && 
-            !record.notes?.includes('férias') && 
-            !record.notes?.includes('descanso semanal remunerado') && 
-            !record.notes?.includes('atestado')) {
-          totalExpected += 480; // 8 horas em minutos
-        }
-      } else if (record.type === 'dayoff' || record.type === 'vacation') {
-        // Folgas e férias não contam no banco de horas (reduzem o esperado)
-        // Não adiciona nada
-      }
+    // Usar diretamente o campo balance de cada registro
+    scheduleRecords.forEach(record => {
+      // Somar o saldo de horas de cada registro
+      totalBalance += record.balance || 0;
     });
     
-    // Retornar a diferença entre trabalhado e esperado
-    return totalWorked - totalExpected;
-  }
+    return totalBalance;
+  };
 
   // Formatar minutos para exibição
   const formatMinutes = (minutes: number) => {
@@ -278,6 +285,9 @@ const ProfessionalDetailPage: FC = () => {
     try {
       setIsSaving(true)
       
+      // Calcular o saldo de horas atual a partir dos registros da tabela schedules
+      const currentBalance = calculateOvertimeBalance();
+      
       // Verificar se já existe um registro para este profissional
       const { data, error: fetchError } = await supabase
         .from('professional_details')
@@ -289,11 +299,11 @@ const ProfessionalDetailPage: FC = () => {
         throw fetchError
       }
       
-      // Preparar dados para salvar
+      // Preparar dados para salvar - usando o saldo calculado dos registros
       const detailsData = {
         professional_id: id,
         notes: professionalDetails.notes,
-        balance_hours: professionalDetails.balanceHours,
+        balance_hours: currentBalance, // Usar saldo calculado em vez do valor armazenado
         vacation_days: professionalDetails.vacationDays,
         last_vacation_date: professionalDetails.lastVacationDate,
         updated_at: new Date().toISOString(),
@@ -319,6 +329,12 @@ const ProfessionalDetailPage: FC = () => {
         if (insertError) throw insertError
       }
       
+      // Atualizar o estado local para refletir os dados salvos
+      setProfessionalDetails(prev => ({
+        ...prev,
+        balanceHours: currentBalance
+      }));
+      
       toast.success('Detalhes do profissional salvos com sucesso!')
     } catch (error) {
       console.error('Erro ao salvar detalhes do profissional:', error)
@@ -331,20 +347,60 @@ const ProfessionalDetailPage: FC = () => {
   // Carregar detalhes do profissional ao montar o componente
   useEffect(() => {
     if (id) {
-      loadProfessionalDetails()
+      loadProfessionalDetails();
+      
+      // Também carregar os registros de escala se o período estiver definido
+      if (dateRange?.from && dateRange?.to) {
+        loadScheduleRecordsFromSupabase();
+      }
     }
-  }, [id])
+  }, [id]);
+
+  // Adicionar função para recalcular o saldo de horas
+  const recalculateHoursBalance = async () => {
+    try {
+      setIsSaving(true);
+      
+      // Forçar recarregamento dos registros de escala
+      await loadScheduleRecordsFromSupabase();
+      
+      // Calcular saldo com base nos registros carregados
+      const currentBalance = calculateOvertimeBalance();
+      
+      // Atualizar o estado local
+      setProfessionalDetails(prev => ({
+        ...prev,
+        balanceHours: currentBalance
+      }));
+      
+      toast.success('Saldo de horas recalculado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao recalcular saldo de horas:', error);
+      toast.error('Erro ao recalcular saldo de horas. Tente novamente.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   // Adicionar botão para salvar detalhes do profissional
   const renderSaveButton = () => {
     return (
-      <Button 
-        onClick={saveProfessionalDetails}
-        disabled={isSaving}
-        className="mt-4"
-      >
-        {isSaving ? 'Salvando...' : 'Salvar Detalhes do Profissional'}
-      </Button>
+      <div className="flex gap-2 mt-4">
+        <Button 
+          onClick={saveProfessionalDetails}
+          disabled={isSaving}
+        >
+          {isSaving ? 'Salvando...' : 'Salvar Detalhes do Profissional'}
+        </Button>
+        
+        <Button 
+          onClick={recalculateHoursBalance}
+          disabled={isSaving}
+          variant="outline"
+        >
+          Recalcular Saldo de Horas
+        </Button>
+      </div>
     )
   }
 
