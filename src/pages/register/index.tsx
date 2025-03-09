@@ -40,7 +40,6 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Info, Loader2 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { supabase } from '@/lib/supabase'
 
 // Validações personalizadas
 const cpfRegex = /^\d{3}\.\d{3}\.\d{3}-\d{2}$|^\d{11}$/
@@ -185,34 +184,10 @@ const RegisterPage: FC = () => {
 
   async function onSubmit(data: ProfessionalFormValues) {
     try {
-      // Reinicializar estado de envio
-      setIsSubmitting(true);
-      
-      // Adicionar timeout para evitar que o botão fique travado indefinidamente
-      const timeoutId = setTimeout(() => {
-        // Se após 15 segundos o processo não concluiu, assumimos que houve erro
-        if (isSubmitting) {
-          setIsSubmitting(false);
-          toast.error('A operação demorou muito tempo. Tente novamente.');
-        }
-      }, 15000);
-      
-      // Verificar conexão com Supabase antes de prosseguir
-      try {
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) {
-          throw new Error(`Erro de conexão com o serviço: ${sessionError.message}`);
-        }
-      } catch (connError) {
-        console.error('Erro ao verificar conexão:', connError);
-        toast.error('Não foi possível conectar ao serviço. Verifique sua conexão de internet.');
-        setIsSubmitting(false);
-        clearTimeout(timeoutId);
-        return;
-      }
+      setIsSubmitting(true)
 
       // Formatar o horário de trabalho
-      const formattedWorkHours = `${data.workStartTime}-${data.workEndTime}`;
+      const formattedWorkHours = `${data.workStartTime}-${data.workEndTime}`
 
       // Preparar os dados do profissional
       const professionalData: Omit<Professional, 'id'> = {
@@ -229,60 +204,26 @@ const RegisterPage: FC = () => {
         email: data.email,
         status: data.status,
         avatarUrl: professionalToEdit?.avatarUrl ?? '',
-      };
+      }
 
-      let result = null;
-      
       if (editId) {
         // Atualizar profissional existente
-        result = await updateProfessional(editId, professionalData);
-        if (result) {
-          toast.success('Profissional atualizado com sucesso!');
-        } else {
-          throw new Error('Não foi possível atualizar o profissional');
-        }
+        await updateProfessional(editId, professionalData)
+        toast.success('Profissional atualizado com sucesso!')
       } else {
         // Adicionar novo profissional
-        result = await addProfessional(professionalData);
-        if (result) {
-          toast.success('Profissional cadastrado com sucesso!');
-          // Limpar o formulário ANTES de navegar
-          form.reset(defaultValues);
-        } else {
-          throw new Error('Não foi possível cadastrar o profissional');
-        }
+        await addProfessional(professionalData)
+        toast.success('Profissional cadastrado com sucesso!')
+        form.reset(defaultValues)
       }
 
-      // Cancelar o timeout, pois a operação foi concluída
-      clearTimeout(timeoutId);
-      
-      // Garantir que o estado isSubmitting seja resetado antes de navegar
-      setIsSubmitting(false);
-      
       // Redirecionar para a lista de profissionais
-      navigate('/professionals');
-      
+      void navigate('/professionals')
     } catch (error) {
-      console.error('Erro ao salvar profissional:', error);
-      
-      // Mensagem de erro mais específica
-      let errorMessage = 'Erro ao salvar profissional. Tente novamente.';
-      
-      if (error instanceof Error) {
-        // Se for um erro do Supabase, pode ter uma mensagem específica
-        if (error.message.includes('duplicate')) {
-          errorMessage = 'Já existe um profissional com esses dados.';
-        } else if (error.message.includes('not found')) {
-          errorMessage = 'Tabela de profissionais não encontrada. Contate o suporte.';
-        } else {
-          errorMessage = `Erro: ${error.message}`;
-        }
-      }
-      
-      toast.error(errorMessage);
+      console.error('Erro ao salvar profissional:', error)
+      toast.error('Erro ao salvar profissional. Tente novamente.')
     } finally {
-      // Garantir que isSubmitting seja sempre resetado
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
   }
 

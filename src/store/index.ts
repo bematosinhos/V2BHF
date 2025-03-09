@@ -320,38 +320,20 @@ export const useAppStore = create<AppState>()(
           // Converter para o formato do Supabase (snake_case)
           const professionalData = convertToSupabaseProfessional(professionalWithRequiredFields)
 
-          // Adicionar timeout para evitar que a operação fique presa indefinidamente
-          const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Timeout ao adicionar profissional')), 10000);
-          });
+          const { data, error } = await professionalService.addProfessional(professionalData)
+          if (error) throw error
 
-          // Executar a requisição com timeout
-          const result = await Promise.race([
-            professionalService.addProfessional(professionalData),
-            timeoutPromise
-          ]) as { data: any, error: any };
+          if (data?.[0]) {
+            // Converter de volta para camelCase
+            const newProfessional = convertToAppProfessional(data[0] as SupabaseProfessional)
 
-          // Verificar se houve erro
-          if (result.error) {
-            console.error('Erro do Supabase ao adicionar profissional:', result.error);
-            throw result.error;
+            set((state) => ({
+              professionals: [...state.professionals, newProfessional],
+            }))
+
+            return newProfessional
           }
-
-          // Verificar se retornou dados
-          if (!result.data || !result.data[0]) {
-            console.error('Nenhum dado retornado ao adicionar profissional');
-            throw new Error('Falha ao adicionar profissional: nenhum dado retornado');
-          }
-
-          // Converter de volta para camelCase
-          const newProfessional = convertToAppProfessional(result.data[0] as SupabaseProfessional)
-
-          // Atualizar o estado
-          set((state) => ({
-            professionals: [...state.professionals, newProfessional],
-          }))
-
-          return newProfessional
+          return null
         } catch (error) {
           console.error('Erro ao adicionar profissional:', error)
           throw error
