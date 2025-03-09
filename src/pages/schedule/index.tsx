@@ -11,7 +11,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
 import {
   ChevronLeft,
   ChevronRight,
@@ -21,8 +20,6 @@ import {
 } from 'lucide-react'
 import {
   format,
-  addMonths,
-  subMonths,
   getYear,
   getMonth,
   startOfMonth,
@@ -81,7 +78,6 @@ const SchedulePage: FC = () => {
   const [currentDate, setCurrentDate] = useState<Date>(new Date())
   const [selectedYear, setSelectedYear] = useState<number>(getYear(new Date()))
   const [selectedMonth, setSelectedMonth] = useState<number>(getMonth(new Date()))
-  const [forceUpdate, setForceUpdate] = useState(0)
 
   const selectedProfessional = professionals.find((p) => p.id === selectedProfessionalId)
 
@@ -98,12 +94,6 @@ const SchedulePage: FC = () => {
     newDate.setMonth(selectedMonth)
     setCurrentDate(newDate)
   }, [selectedYear, selectedMonth])
-
-  // Atualizar interface quando forceUpdate ou timeRecords mudar
-  useEffect(() => {
-    // Apenas para garantir que a interface seja atualizada
-    console.log('Atualizando interface', { forceUpdate, timeRecordsLength: timeRecords.length });
-  }, [forceUpdate, timeRecords]);
 
   // Gerar as semanas do mês
   const getWeeksOfMonth = () => {
