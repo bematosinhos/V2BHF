@@ -634,7 +634,15 @@ const SchedulePage: FC = () => {
     };
   }, [hasUnsavedChanges]);
 
-  // Melhorar a função loadScheduleFromSupabase para preservar alterações pendentes
+  // Adicionar efeito para carregar dados ao montar o componente
+  useEffect(() => {
+    // Carregar os dados iniciais do Supabase quando o componente for montado
+    loadScheduleFromSupabase();
+    
+    // Esta é uma operação de montagem única, sem dependências
+  }, []); // Array de dependências vazio para executar apenas uma vez na montagem
+
+  // Modificar a função loadScheduleFromSupabase para carregar todos os dados
   const loadScheduleFromSupabase = async () => {
     try {
       // Não ativar isSaving durante o carregamento normal
@@ -648,6 +656,7 @@ const SchedulePage: FC = () => {
         endOfWeek: endOfWeek.toISOString() 
       });
       
+      // Carregar TODOS os registros da semana, não apenas do profissional selecionado
       const { data, error } = await supabase
         .from('schedules')
         .select('*')
@@ -681,6 +690,9 @@ const SchedulePage: FC = () => {
         // Atualizar estados - SEMPRE substituir com os dados do banco
         setSelectedTypes(prev => ({ ...prev, ...newSelectedTypes }));
         setPendingChanges(prev => ({ ...prev, ...newPendingChanges }));
+        
+        // Calcular saldo de horas com os novos dados carregados
+        calculateOvertimeBalance();
       }
     } catch (error) {
       console.error('Erro ao carregar escala:', error);

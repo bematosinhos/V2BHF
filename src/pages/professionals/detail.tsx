@@ -356,6 +356,30 @@ const ProfessionalDetailPage: FC = () => {
     }
   }, [id]);
 
+  // Adicionar efeito para recalcular saldo quando o período mudar
+  useEffect(() => {
+    if (dateRange?.from && dateRange?.to && id) {
+      // Carregar registros de escala sempre que o período mudar
+      loadScheduleRecordsFromSupabase();
+    }
+  }, [dateRange, id]);
+
+  // Adicionar efeito para recalcular saldo quando os registros de escala mudarem
+  useEffect(() => {
+    if (scheduleRecords.length > 0) {
+      // Calcular o saldo baseado nos registros carregados
+      const currentBalance = calculateOvertimeBalance();
+      
+      // Atualizar o estado do profissional com o novo saldo
+      setProfessionalDetails(prev => ({
+        ...prev,
+        balanceHours: currentBalance
+      }));
+      
+      console.log('Saldo de horas recalculado:', currentBalance);
+    }
+  }, [scheduleRecords]);
+
   // Adicionar função para recalcular o saldo de horas
   const recalculateHoursBalance = async () => {
     try {
