@@ -630,57 +630,6 @@ const SchedulePage: FC = () => {
     };
   }, [hasUnsavedChanges]);
 
-  // Função para salvar as alterações (usada pelo botão de salvamento)
-  const saveChanges = async (changes = pendingChanges) => {
-    if (Object.keys(changes).length === 0) return;
-    
-    setIsSaving(true);
-    console.log('Iniciando salvamento de alterações:', changes);
-    
-    try {
-      // Processar cada alteração pendente
-      for (const dateString of Object.keys(changes)) {
-        const change = changes[dateString];
-        const existingRecord = timeRecords.find(
-          (r) => r.date === dateString && r.professionalId === selectedProfessionalId,
-        );
-        
-        if (existingRecord) {
-          console.log(`Atualizando registro existente para ${dateString}:`, change);
-          await updateTimeRecord(existingRecord.id, change)
-            .then(() => console.log(`✅ Registro ${existingRecord.id} atualizado com sucesso`))
-            .catch(err => console.error(`❌ Erro ao atualizar registro ${existingRecord.id}:`, err));
-        } else if (selectedProfessionalId) {
-          console.log(`Criando novo registro para ${dateString}:`, {
-            professionalId: selectedProfessionalId,
-            date: dateString,
-            ...change
-          });
-          await addTimeRecord({
-            professionalId: selectedProfessionalId,
-            date: dateString,
-            ...change,
-          })
-            .then(() => console.log(`✅ Novo registro para ${dateString} criado com sucesso`))
-            .catch(err => console.error(`❌ Erro ao criar registro para ${dateString}:`, err));
-        } else {
-          console.warn('⚠️ Não foi possível salvar - profissional não selecionado');
-        }
-      }
-      
-      // Limpar as alterações pendentes após salvar
-      setPendingChanges({});
-      setLastSavedTime(new Date());
-      toast.success('Escala salva com sucesso!');
-      console.log('✅ Todas as alterações foram salvas com sucesso');
-    } catch (error) {
-      console.error('❌ Erro ao salvar alterações:', error);
-      toast.error('Erro ao salvar a escala. Por favor, tente novamente.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   // Melhorar a função saveScheduleToSupabase para salvar os dados corretamente
   const saveScheduleToSupabase = async () => {
     try {
