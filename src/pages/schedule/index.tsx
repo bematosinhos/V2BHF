@@ -1,4 +1,4 @@
-import { FC, useState, useEffect } from 'react'
+import { FC, useState, useEffect, useRef, useCallback } from 'react'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -36,6 +36,7 @@ import {
 } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useAppStore, TimeRecord } from '@/store'
+import { toast } from 'sonner'
 
 // Lista de feriados nacionais para 2023/2024 (exemplo)
 const HOLIDAYS = [
@@ -71,6 +72,23 @@ type DayType = 'normal' | 'falta' | 'folga' | 'ferias' | 'atestado' | 'dsr'
 //   holidayName?: string;
 // }
 
+// Criar um hook customizado de debounce para o salvamento automático
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
 const SchedulePage: FC = () => {
   const { professionals, selectedProfessionalId, timeRecords, updateTimeRecord, addTimeRecord } =
     useAppStore()
@@ -78,6 +96,18 @@ const SchedulePage: FC = () => {
   const [currentDate, setCurrentDate] = useState<Date>(new Date())
   const [selectedYear, setSelectedYear] = useState<number>(getYear(new Date()))
   const [selectedMonth, setSelectedMonth] = useState<number>(getMonth(new Date()))
+  
+  // Novo estado para controle de alterações
+  const [selectedTypes, setSelectedTypes] = useState<Record<string, DayType>>({})
+  const [pendingChanges, setPendingChanges] = useState<Record<string, any>>({})
+  const [isSaving, setIsSaving] = useState(false)
+  const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null)
+
+  // Referência para alterações não salvas ao sair da página
+  const hasUnsavedChanges = Object.keys(pendingChanges).length > 0
+  
+  // Debounce para salvamento automático
+  const debouncedPendingChanges = useDebounce(pendingChanges, 3000);
 
   const selectedProfessional = professionals.find((p) => p.id === selectedProfessionalId)
 
@@ -137,9 +167,6 @@ const SchedulePage: FC = () => {
     endDate.setHours(endHours, endMinutes, 0, 0)
     return differenceInMinutes(endDate, startDate) - 60
   }
-
-  // Tipo de dia selecionado para cada data
-  const [selectedTypes, setSelectedTypes] = useState<Record<string, DayType>>({})
 
   // Obter o tipo de dia com base nos registros
   const getDayType = (date: Date, records: TimeRecord[]): DayType => {
@@ -264,27 +291,34 @@ const SchedulePage: FC = () => {
       )
       const dayType = getDayType(day, timeRecords)
       const holiday = isHoliday(day)
+      const pendingChange = pendingChanges[dateString];
+
+      // Determinar o tipo efetivo considerando alterações pendentes
+      const effectiveType = pendingChange?.type 
+        ? Object.entries(dayTypeMapping).find(([_, v]) => v === pendingChange.type)?.[0] as DayType || dayType
+        : dayType;
 
       // Aplicar regras consistentes com getDailyBalance
       // Dias que não contabilizam horas
       if (
         holiday ||
-        dayType === 'ferias' ||
-        dayType === 'atestado' ||
-        dayType === 'dsr' ||
-        dayType === 'folga' ||
-        dayType === 'falta'
+        effectiveType === 'ferias' ||
+        effectiveType === 'atestado' ||
+        effectiveType === 'dsr' ||
+        effectiveType === 'folga' ||
+        effectiveType === 'falta'
       ) {
         return // Não adiciona horas
       }
 
       // Para dias normais (incluindo fins de semana configurados como normais)
-      if (dayType === 'normal') {
-        if (record?.checkIn && record?.checkOut) {
-          totalMinutes += calculateDayHoursBalance(day, record.checkIn, record.checkOut)
-        } else {
-          totalMinutes += calculateDayHoursBalance(day, defaultCheckIn, defaultCheckOut)
-        }
+      if (effectiveType === 'normal') {
+        // Determinar horários efetivos, considerando alterações pendentes
+        const effectiveCheckIn = pendingChange?.checkIn || record?.checkIn || defaultCheckIn;
+        const effectiveCheckOut = pendingChange?.checkOut || record?.checkOut || defaultCheckOut;
+        
+        // Calcular horas trabalhadas com os horários efetivos
+        totalMinutes += calculateDayHoursBalance(day, effectiveCheckIn, effectiveCheckOut);
       }
     })
 
@@ -299,19 +333,26 @@ const SchedulePage: FC = () => {
     holiday: ReturnType<typeof isHoliday>,
   ) => {
     let worked = 0
+    const dateString = format(day, 'yyyy-MM-dd');
+    const pendingChange = pendingChanges[dateString];
+    
+    // Determinar o tipo efetivo considerando alterações pendentes
+    const effectiveType = pendingChange?.type 
+      ? Object.entries(dayTypeMapping).find(([_, v]) => v === pendingChange.type)?.[0] as DayType || dayType
+      : dayType;
 
     // 1. Dias que não impactam o banco de horas e reduzem carga horária esperada
     if (
       holiday ||
-      dayType === 'ferias' ||
-      dayType === 'atestado' ||
-      dayType === 'dsr' ||
-      dayType === 'folga'
+      effectiveType === 'ferias' ||
+      effectiveType === 'atestado' ||
+      effectiveType === 'dsr' ||
+      effectiveType === 'folga'
     ) {
       return { balance: 0, display: '-', color: 'text-muted-foreground' }
     }
     // 2. Dias que geram impacto negativo no banco de horas e não reduzem carga esperada
-    else if (dayType === 'falta') {
+    else if (effectiveType === 'falta') {
       return {
         balance: -480,
         display: formatMinutes(-480),
@@ -320,13 +361,12 @@ const SchedulePage: FC = () => {
     }
     // 3. Dias normais de trabalho
     else {
-      // Se tem registro com check-in e check-out, calcula com esses valores
-      if (record?.checkIn && record?.checkOut) {
-        worked = calculateDayHoursBalance(day, record.checkIn, record.checkOut)
-      } else {
-        // Senão usa os valores padrão
-        worked = calculateDayHoursBalance(day, defaultCheckIn, defaultCheckOut)
-      }
+      // Determinar horários efetivos, considerando alterações pendentes
+      const effectiveCheckIn = pendingChange?.checkIn || record?.checkIn || defaultCheckIn;
+      const effectiveCheckOut = pendingChange?.checkOut || record?.checkOut || defaultCheckOut;
+      
+      // Calcular horas trabalhadas com os horários efetivos
+      worked = calculateDayHoursBalance(day, effectiveCheckIn, effectiveCheckOut);
 
       // Para o tipo normal, vamos mostrar diretamente as horas trabalhadas em vez de (trabalhado - esperado)
       return {
@@ -349,18 +389,12 @@ const SchedulePage: FC = () => {
     const dateString = format(date, 'yyyy-MM-dd')
     const storeType = dayTypeMapping[type]
     
-    // Primeiro atualiza o estado local para feedback imediato
+    // Atualizar estado local para feedback imediato
     setSelectedTypes(prev => ({
       ...prev,
       [dateString]: type
     }))
     
-    console.log(`Atualizando dia ${dateString} para tipo ${type}`)
-    
-    const existingRecord = timeRecords.find(
-      (r) => r.date === dateString && r.professionalId === selectedProfessionalId,
-    )
-
     // Preparar dados para atualização
     let recordUpdate: Partial<TimeRecord> = { 
       type: storeType,
@@ -395,26 +429,14 @@ const SchedulePage: FC = () => {
       recordUpdate.checkIn = defaultCheckIn
       recordUpdate.checkOut = defaultCheckOut
     }
-
-    // Atualizar ou criar o registro
-    setTimeout(() => {
-      if (existingRecord) {
-        updateTimeRecord(existingRecord.id, recordUpdate)
-          .then(() => console.log('Registro atualizado com sucesso'))
-          .catch(err => console.error('Erro ao atualizar registro:', err))
-      } else if (selectedProfessionalId) {
-        addTimeRecord({
-          professionalId: selectedProfessionalId,
-          date: dateString,
-          checkIn: recordUpdate.checkIn || '',
-          checkOut: recordUpdate.checkOut || '',
-          type: storeType,
-          notes: recordUpdate.notes || '',
-        })
-          .then(() => console.log('Registro criado com sucesso'))
-          .catch(err => console.error('Erro ao criar registro:', err))
-      }
-    }, 0)
+    
+    // Adicionar à lista de alterações pendentes
+    setPendingChanges(prev => ({
+      ...prev,
+      [dateString]: recordUpdate
+    }));
+    
+    console.log(`Alteração pendente para ${dateString}: tipo = ${type}`);
   }
 
   // Calcular total de horas trabalhadas no mês
@@ -428,33 +450,40 @@ const SchedulePage: FC = () => {
     })
 
     monthDays.forEach((day) => {
-      // Verificar se é feriado primeiro
-      const holiday = isHoliday(day)
-      if (holiday) return
-
-      const dayType = getDayType(day, timeRecords)
-      // Pular dias especiais que não contam horas
-      if (
-        dayType === 'folga' ||
-        dayType === 'ferias' ||
-        dayType === 'atestado' ||
-        dayType === 'falta' ||
-        dayType === 'dsr'
-      ) {
-        return
-      }
-
       const dateString = format(day, 'yyyy-MM-dd')
       const record = timeRecords.find(
         (r) => r.date === dateString && r.professionalId === selectedProfessionalId,
       )
+      const dayType = getDayType(day, timeRecords)
+      const holiday = isHoliday(day)
+      const pendingChange = pendingChanges[dateString];
 
-      if (record?.checkIn && record?.checkOut) {
-        // Usar valores registrados
-        totalMinutes += calculateDayHoursBalance(day, record.checkIn, record.checkOut)
-      } else {
-        // Usar valores padrão para dias normais
-        totalMinutes += calculateDayHoursBalance(day, defaultCheckIn, defaultCheckOut)
+      // Determinar o tipo efetivo considerando alterações pendentes
+      const effectiveType = pendingChange?.type 
+        ? Object.entries(dayTypeMapping).find(([_, v]) => v === pendingChange.type)?.[0] as DayType || dayType
+        : dayType;
+
+      // Aplicar regras consistentes com getDailyBalance
+      // Dias que não contabilizam horas
+      if (
+        holiday ||
+        effectiveType === 'ferias' ||
+        effectiveType === 'atestado' ||
+        effectiveType === 'dsr' ||
+        effectiveType === 'folga' ||
+        effectiveType === 'falta'
+      ) {
+        return // Não adiciona horas
+      }
+
+      // Para dias normais (incluindo fins de semana configurados como normais)
+      if (effectiveType === 'normal') {
+        // Determinar horários efetivos, considerando alterações pendentes
+        const effectiveCheckIn = pendingChange?.checkIn || record?.checkIn || defaultCheckIn;
+        const effectiveCheckOut = pendingChange?.checkOut || record?.checkOut || defaultCheckOut;
+        
+        // Calcular horas trabalhadas com os horários efetivos
+        totalMinutes += calculateDayHoursBalance(day, effectiveCheckIn, effectiveCheckOut);
       }
     })
 
@@ -467,38 +496,49 @@ const SchedulePage: FC = () => {
     const existingRecord = timeRecords.find(
       (r) => r.date === dateString && r.professionalId === selectedProfessionalId,
     )
-
+    
+    let update: Partial<TimeRecord>;
+    
     if (existingRecord) {
       // Se for campo de fim e o início não estiver definido, definir valor padrão para início
       if (!isStart && !existingRecord.checkIn) {
-        void updateTimeRecord(existingRecord.id, {
+        update = {
           checkIn: defaultCheckIn,
           checkOut: value,
-        })
+        };
       }
       // Se for campo de início e o fim não estiver definido, definir valor padrão para fim
       else if (isStart && !existingRecord.checkOut) {
-        void updateTimeRecord(existingRecord.id, {
+        update = {
           checkIn: value,
           checkOut: defaultCheckOut,
-        })
+        };
       }
       // Caso normal: apenas atualizar o campo específico
       else {
-        void updateTimeRecord(existingRecord.id, {
+        update = {
           [isStart ? 'checkIn' : 'checkOut']: value,
-        })
+        };
       }
-    } else if (selectedProfessionalId) {
+    } else {
       // Ao criar novo registro, definir ambos valores, usando padrão para o campo não fornecido
-      void addTimeRecord({
-        professionalId: selectedProfessionalId,
-        date: dateString,
+      update = {
         checkIn: isStart ? value : defaultCheckIn,
         checkOut: isStart ? defaultCheckOut : value,
         type: 'regular',
-      })
+      };
     }
+    
+    // Adicionar à lista de alterações pendentes
+    setPendingChanges(prev => ({
+      ...prev,
+      [dateString]: {
+        ...(prev[dateString] || {}),
+        ...update
+      }
+    }));
+    
+    console.log(`Alteração pendente para ${dateString}: ${isStart ? 'entrada' : 'saída'} = ${value}`);
   }
 
   // Enviar escala por WhatsApp
@@ -612,6 +652,80 @@ const SchedulePage: FC = () => {
       dsr: 'DSR'
     };
     return typeMap[type] || 'Normal';
+  };
+
+  // Detectar alterações não salvas quando o usuário tenta sair da página
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        const message = 'Você tem alterações não salvas. Deseja realmente sair?';
+        e.returnValue = message;
+        return message;
+      }
+    };
+
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
+  }, [hasUnsavedChanges]);
+
+  // Efeito para salvamento automático após debounce
+  useEffect(() => {
+    if (Object.keys(debouncedPendingChanges).length > 0) {
+      saveChanges(debouncedPendingChanges);
+    }
+  }, [debouncedPendingChanges]);
+
+  // Função para salvar as alterações (usada tanto pelo salvamento automático quanto pelo botão)
+  const saveChanges = async (changes = pendingChanges) => {
+    if (Object.keys(changes).length === 0) return;
+    
+    setIsSaving(true);
+    console.log('Iniciando salvamento de alterações:', changes);
+    
+    try {
+      // Processar cada alteração pendente
+      for (const dateString of Object.keys(changes)) {
+        const change = changes[dateString];
+        const existingRecord = timeRecords.find(
+          (r) => r.date === dateString && r.professionalId === selectedProfessionalId,
+        );
+        
+        if (existingRecord) {
+          console.log(`Atualizando registro existente para ${dateString}:`, change);
+          await updateTimeRecord(existingRecord.id, change)
+            .then(() => console.log(`✅ Registro ${existingRecord.id} atualizado com sucesso`))
+            .catch(err => console.error(`❌ Erro ao atualizar registro ${existingRecord.id}:`, err));
+        } else if (selectedProfessionalId) {
+          console.log(`Criando novo registro para ${dateString}:`, {
+            professionalId: selectedProfessionalId,
+            date: dateString,
+            ...change
+          });
+          await addTimeRecord({
+            professionalId: selectedProfessionalId,
+            date: dateString,
+            ...change,
+          })
+            .then(() => console.log(`✅ Novo registro para ${dateString} criado com sucesso`))
+            .catch(err => console.error(`❌ Erro ao criar registro para ${dateString}:`, err));
+        } else {
+          console.warn('⚠️ Não foi possível salvar - profissional não selecionado');
+        }
+      }
+      
+      // Limpar as alterações pendentes após salvar
+      setPendingChanges({});
+      setLastSavedTime(new Date());
+      toast.success('Escala salva com sucesso!');
+      console.log('✅ Todas as alterações foram salvas com sucesso');
+    } catch (error) {
+      console.error('❌ Erro ao salvar alterações:', error);
+      toast.error('Erro ao salvar a escala. Por favor, tente novamente.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -729,7 +843,19 @@ const SchedulePage: FC = () => {
 
         {/* Legenda */}
         <div className="text-muted-foreground text-sm">
-          <div className="font-medium mb-2">Legenda:</div>
+          <div className="flex justify-between items-center mb-2">
+            <div className="font-medium">Legenda:</div>
+            {hasUnsavedChanges && (
+              <div className="flex items-center bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 px-3 py-1 rounded-full text-xs font-medium">
+                <span className="relative flex h-2 w-2 mr-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </span>
+                {Object.keys(pendingChanges).length} {Object.keys(pendingChanges).length === 1 ? 'alteração' : 'alterações'} pendente{Object.keys(pendingChanges).length === 1 ? '' : 's'}
+                {isSaving && <span className="ml-2 italic">(salvando...)</span>}
+              </div>
+            )}
+          </div>
           <div className="flex flex-wrap gap-2">
             <Badge
               variant="outline"
@@ -829,28 +955,6 @@ const SchedulePage: FC = () => {
                 Semana {weekIndex + 1}: {format(weekStart, 'dd/MM', { locale: ptBR })} -{' '}
                 {format(endOfWeek(weekStart, { weekStartsOn: 0 }), 'dd/MM', { locale: ptBR })}
               </CardTitle>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center gap-1"
-                  onClick={() => sendScheduleByWhatsApp(weekStart)}
-                  disabled={!selectedProfessional}
-                >
-                  <MessageSquare className="h-4 w-4" />
-                  <span className="hidden md:inline">WhatsApp</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center gap-1"
-                  onClick={() => sendScheduleByEmail(weekStart)}
-                  disabled={!selectedProfessional?.email}
-                >
-                  <Mail className="h-4 w-4" />
-                  <span className="hidden md:inline">Email</span>
-                </Button>
-              </div>
             </CardHeader>
 
             <CardContent>
@@ -880,7 +984,14 @@ const SchedulePage: FC = () => {
                       return (
                         <tr
                           key={day.toString()}
-                          className={`border-b ${!isCurrentMonth ? 'opacity-50 dark:opacity-70' : ''} ${isToday(day) ? 'bg-blue-50 dark:bg-blue-900/30' : ''} ${holiday ? 'bg-amber-50 dark:bg-amber-900/30' : ''} ${isWeekend(day) ? 'bg-gray-50 dark:bg-gray-700 dark:text-gray-200' : ''} ${isPast(day) && !isWeekend(day) && !isToday(day) && !holiday ? 'dark:text-gray-400' : ''} `}
+                          className={`border-b 
+                            ${!isCurrentMonth ? 'opacity-50 dark:opacity-70' : ''} 
+                            ${isToday(day) ? 'bg-blue-50 dark:bg-blue-900/30' : ''} 
+                            ${holiday ? 'bg-amber-50 dark:bg-amber-900/30' : ''} 
+                            ${isWeekend(day) ? 'bg-gray-50 dark:bg-gray-700 dark:text-gray-200' : ''} 
+                            ${isPast(day) && !isWeekend(day) && !isToday(day) && !holiday ? 'dark:text-gray-400' : ''}
+                            ${pendingChanges[format(day, 'yyyy-MM-dd')] ? 'relative shadow-sm after:absolute after:inset-y-0 after:left-0 after:w-1 after:bg-green-400 dark:after:bg-green-600' : ''}
+                          `}
                         >
                           <td className="p-2 font-medium">{format(day, 'dd')}</td>
                           <td className="p-2">
@@ -895,7 +1006,7 @@ const SchedulePage: FC = () => {
                             <Input
                               type="time"
                               className="h-8 w-24 dark:border-gray-600 dark:bg-gray-800"
-                              value={record?.checkIn ?? defaultCheckIn}
+                              value={pendingChanges[dateString]?.checkIn || record?.checkIn || defaultCheckIn}
                               onChange={(e) => updateTime(day, true, e.target.value)}
                               disabled={dayType !== 'normal' || !isCurrentMonth}
                             />
@@ -904,7 +1015,7 @@ const SchedulePage: FC = () => {
                             <Input
                               type="time"
                               className="h-8 w-24 dark:border-gray-600 dark:bg-gray-800"
-                              value={record?.checkOut ?? defaultCheckOut}
+                              value={pendingChanges[dateString]?.checkOut || record?.checkOut || defaultCheckOut}
                               onChange={(e) => updateTime(day, false, e.target.value)}
                               disabled={dayType !== 'normal' || !isCurrentMonth}
                             />
@@ -976,10 +1087,13 @@ const SchedulePage: FC = () => {
                   return (
                     <div 
                       key={day.toString()} 
-                      className={`p-3 rounded-lg border ${!isCurrentMonth ? 'opacity-70' : ''} 
-                      ${isToday(day) ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/30 dark:border-blue-800' : ''} 
-                      ${holiday ? 'bg-amber-50 border-amber-200 dark:bg-amber-900/30 dark:border-amber-800' : ''} 
-                      ${isWeekend(day) ? 'bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700' : 'dark:bg-gray-900 dark:border-gray-800'}`}
+                      className={`p-3 rounded-lg border 
+                        ${!isCurrentMonth ? 'opacity-70' : ''} 
+                        ${isToday(day) ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/30 dark:border-blue-800' : ''} 
+                        ${holiday ? 'bg-amber-50 border-amber-200 dark:bg-amber-900/30 dark:border-amber-800' : ''} 
+                        ${isWeekend(day) ? 'bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700' : 'dark:bg-gray-900 dark:border-gray-800'}
+                        ${pendingChanges[format(day, 'yyyy-MM-dd')] ? 'border-l-green-400 border-l-4 dark:border-l-green-600' : ''}
+                      `}
                     >
                       {/* Cabeçalho do card com dia e tipo */}
                       <div className="flex justify-between items-center mb-3">
@@ -1028,7 +1142,7 @@ const SchedulePage: FC = () => {
                             <Input
                               type="time"
                               className="h-8 text-sm dark:border-gray-600 dark:bg-gray-800"
-                              value={record?.checkIn ?? defaultCheckIn}
+                              value={pendingChanges[dateString]?.checkIn || record?.checkIn || defaultCheckIn}
                               onChange={(e) => updateTime(day, true, e.target.value)}
                               disabled={!isCurrentMonth}
                             />
@@ -1038,7 +1152,7 @@ const SchedulePage: FC = () => {
                             <Input
                               type="time"
                               className="h-8 text-sm dark:border-gray-600 dark:bg-gray-800"
-                              value={record?.checkOut ?? defaultCheckOut}
+                              value={pendingChanges[dateString]?.checkOut || record?.checkOut || defaultCheckOut}
                               onChange={(e) => updateTime(day, false, e.target.value)}
                               disabled={!isCurrentMonth}
                             />
@@ -1063,6 +1177,63 @@ const SchedulePage: FC = () => {
                   <div className="font-bold">{formatWorkedTime(calculateWeeklyHours(weekStart))}</div>
                 </div>
               </div>
+              
+              {/* Rodapé com botões de ações */}
+              <div className="mt-4 border-t pt-4 flex flex-wrap justify-between items-center gap-2">
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-1"
+                    onClick={() => sendScheduleByWhatsApp(weekStart)}
+                    disabled={!selectedProfessional}
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    <span className="sm:inline">WhatsApp</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-1"
+                    onClick={() => sendScheduleByEmail(weekStart)}
+                    disabled={!selectedProfessional?.email}
+                  >
+                    <Mail className="h-4 w-4" />
+                    <span className="sm:inline">Email</span>
+                  </Button>
+                </div>
+                
+                {/* Botão de salvar escala da semana */}
+                {hasUnsavedChanges && (
+                  <Button 
+                    onClick={() => saveChanges()} 
+                    disabled={isSaving || Object.keys(pendingChanges).length === 0}
+                    className="flex items-center gap-2"
+                  >
+                    {isSaving ? (
+                      <>
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                        Salvando...
+                      </>
+                    ) : (
+                      <>
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                        </span>
+                        Salvar escala da semana
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+              
+              {/* Indicador de última vez salvo */}
+              {lastSavedTime && !hasUnsavedChanges && (
+                <div className="mt-2 text-xs text-muted-foreground text-right">
+                  Última atualização: {format(lastSavedTime, 'dd/MM/yyyy HH:mm:ss')}
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}

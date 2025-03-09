@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { format, differenceInMonths, parseISO } from 'date-fns'
+import { format, differenceInMonths, parseISO, differenceInMinutes } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
   CalendarIcon,
@@ -72,9 +72,63 @@ const ProfessionalDetailPage: FC = () => {
 
   // Calcular banco de horas
   const calculateOvertimeBalance = () => {
-    // Simulação de cálculo de banco de horas
-    // Em um sistema real, isso seria calculado com base nos registros de ponto
-    return 765 // 12h 45min em minutos (positivo)
+    if (!dateRange?.from || !dateRange?.to || !id) return 0;
+    
+    const fromDate = dateRange.from;
+    const toDate = dateRange.to;
+    
+    // Filtrar os registros do período selecionado
+    const relevantRecords = timeRecords.filter(record => {
+      // Verificar se o registro pertence ao profissional atual
+      if (record.professionalId !== id) return false;
+      
+      // Verificar se está dentro do período selecionado
+      const recordDate = new Date(record.date);
+      return recordDate >= fromDate && recordDate <= toDate;
+    });
+    
+    // Calcular a diferença entre horas trabalhadas e esperadas
+    let totalWorked = 0;
+    let totalExpected = 0;
+    
+    relevantRecords.forEach(record => {
+      // Verificar o tipo de registro
+      if (record.type === 'regular') {
+        // Dias normais: calcular horas trabalhadas
+        if (record.checkIn && record.checkOut) {
+          // Calcular horas trabalhadas
+          const checkInParts = record.checkIn.split(':');
+          const checkOutParts = record.checkOut.split(':');
+          
+          if (checkInParts.length === 2 && checkOutParts.length === 2) {
+            const startDate = new Date();
+            startDate.setHours(parseInt(checkInParts[0]), parseInt(checkInParts[1]), 0, 0);
+            
+            const endDate = new Date();
+            endDate.setHours(parseInt(checkOutParts[0]), parseInt(checkOutParts[1]), 0, 0);
+            
+            // Calcular a diferença em minutos, menos 1h de almoço
+            const minutesWorked = differenceInMinutes(endDate, startDate) - 60;
+            totalWorked += minutesWorked;
+          }
+        }
+        
+        // Se for dia normal, adicionar 8h (480 min) ao esperado
+        if (!record.notes?.includes('falta') && 
+            !record.notes?.includes('folga') && 
+            !record.notes?.includes('férias') && 
+            !record.notes?.includes('descanso semanal remunerado') && 
+            !record.notes?.includes('atestado')) {
+          totalExpected += 480; // 8 horas em minutos
+        }
+      } else if (record.type === 'dayoff' || record.type === 'vacation') {
+        // Folgas e férias não contam no banco de horas (reduzem o esperado)
+        // Não adiciona nada
+      }
+    });
+    
+    // Retornar a diferença entre trabalhado e esperado
+    return totalWorked - totalExpected;
   }
 
   // Formatar minutos para exibição
