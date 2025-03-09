@@ -774,13 +774,31 @@ const SchedulePage: FC = () => {
           // Buscar valores de horários das alterações pendentes ou do registro existente
           const existingRecord = existingRecords.get(cellKey);
           
-          const startTime = pendingChanges[startTimeKey] || 
-                            (existingRecord ? existingRecord.start_time : '08:00');
-          const endTime = pendingChanges[endTimeKey] || 
-                          (existingRecord ? existingRecord.end_time : '17:00');
+          // Validar os valores de horário antes de usá-los
+          let startTime = pendingChanges[startTimeKey] || 
+                         (existingRecord ? existingRecord.start_time : '08:00');
+          let endTime = pendingChanges[endTimeKey] || 
+                       (existingRecord ? existingRecord.end_time : '17:00');
+          
+          // Certificar-se de que os horários estão no formato correto (HH:MM)
+          if (!startTime || typeof startTime !== 'string' || !startTime.match(/^\d{1,2}:\d{2}$/)) {
+            console.warn(`Horário de início inválido (${startTime}) para ${cellKey}, usando padrão 08:00`);
+            startTime = '08:00';
+          }
+          
+          if (!endTime || typeof endTime !== 'string' || !endTime.match(/^\d{1,2}:\d{2}$/)) {
+            console.warn(`Horário de término inválido (${endTime}) para ${cellKey}, usando padrão 17:00`);
+            endTime = '17:00';
+          }
           
           // Calcular saldo
-          const balance = calculateDayHoursBalance(day, startTime, endTime);
+          let balance = 0;
+          try {
+            balance = calculateDayHoursBalance(day, startTime, endTime);
+          } catch (error) {
+            console.error(`Erro ao calcular saldo para ${cellKey}:`, error);
+            balance = 0; // Valor padrão em caso de erro
+          }
           
           const newRecord = {
             professional_id: professional.id,
@@ -811,6 +829,9 @@ const SchedulePage: FC = () => {
       console.log(`Preparados ${scheduleData.length} registros para inserção/atualização`);
       
       if (scheduleData.length > 0) {
+        // Log para depuração - mostrar os primeiros 2 registros que serão salvos
+        console.log('Amostra dos dados a serem salvos:', scheduleData.slice(0, 2));
+        
         // Usar upsert para inserir ou atualizar registros
         const { data, error: upsertError } = await supabase
           .from('schedules')
@@ -819,7 +840,7 @@ const SchedulePage: FC = () => {
           
         if (upsertError) {
           console.error('Erro ao inserir/atualizar dados:', upsertError);
-          throw upsertError;
+          throw new Error(`Erro ao salvar no Supabase: ${upsertError.message || 'Sem detalhes'}`);
         }
         
         console.log(`Inseridos/atualizados ${data?.length || 0} registros com sucesso`);
@@ -833,7 +854,17 @@ const SchedulePage: FC = () => {
       
     } catch (error) {
       console.error('Erro ao salvar escala:', error);
-      toast.error(`Erro ao salvar escala: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      // Melhorar a mensagem de erro para ser mais específica
+      let errorMessage = 'Erro desconhecido';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'object' && error !== null) {
+        // Tentar extrair mais informações de objetos de erro
+        errorMessage = JSON.stringify(error);
+      }
+      
+      toast.error(`Erro ao salvar escala: ${errorMessage}`);
     } finally {
       setIsSaving(false);
     }
