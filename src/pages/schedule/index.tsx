@@ -88,8 +88,7 @@ export type Schedule = {
 }
 
 const SchedulePage: FC = () => {
-  const { professionals, selectedProfessionalId, timeRecords, updateTimeRecord, addTimeRecord } =
-    useAppStore()
+  const { professionals, selectedProfessionalId, timeRecords } = useAppStore()
 
   const [currentDate, setCurrentDate] = useState<Date>(new Date())
   const [selectedYear, setSelectedYear] = useState<number>(getYear(new Date()))
