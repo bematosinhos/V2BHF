@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { format, differenceInMonths, parseISO, differenceInMinutes } from 'date-fns'
+import { format, differenceInMonths, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
   CalendarIcon,
