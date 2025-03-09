@@ -508,52 +508,17 @@ const SchedulePage: FC = () => {
   // Atualizar horário de início ou fim
   const updateTime = (date: Date, isStart: boolean, value: string) => {
     const dateString = format(date, 'yyyy-MM-dd')
-    const existingRecord = timeRecords.find(
-      (r) => r.date === dateString && r.professionalId === selectedProfessionalId,
-    )
+    const cellKey = `${selectedProfessionalId}_${dateString}`;
     
-    let update: Partial<TimeRecord>;
+    // Armazenar a alteração no formato que o Supabase espera
+    const key = isStart ? `start_${cellKey}` : `end_${cellKey}`;
     
-    if (existingRecord) {
-      // Se for campo de fim e o início não estiver definido, definir valor padrão para início
-      if (!isStart && !existingRecord.checkIn) {
-        update = {
-          checkIn: defaultCheckIn,
-          checkOut: value,
-        };
-      }
-      // Se for campo de início e o fim não estiver definido, definir valor padrão para fim
-      else if (isStart && !existingRecord.checkOut) {
-        update = {
-          checkIn: value,
-          checkOut: defaultCheckOut,
-        };
-      }
-      // Caso normal: apenas atualizar o campo específico
-      else {
-        update = {
-          [isStart ? 'checkIn' : 'checkOut']: value,
-        };
-      }
-    } else {
-      // Ao criar novo registro, definir ambos valores, usando padrão para o campo não fornecido
-      update = {
-        checkIn: isStart ? value : defaultCheckIn,
-        checkOut: isStart ? defaultCheckOut : value,
-        type: 'regular',
-      };
-    }
-    
-    // Adicionar à lista de alterações pendentes
     setPendingChanges(prev => ({
       ...prev,
-      [dateString]: {
-        ...(prev[dateString] || {}),
-        ...update
-      }
+      [key]: value
     }));
     
-    console.log(`Alteração pendente para ${dateString}: ${isStart ? 'entrada' : 'saída'} = ${value}`);
+    console.log(`Alteração pendente: ${key} = ${value}`);
   }
 
   // Enviar escala por WhatsApp
@@ -743,7 +708,7 @@ const SchedulePage: FC = () => {
     }
   };
 
-  // Modificar a função saveScheduleToSupabase para depurar e garantir funcionamento
+  // Melhorar a função saveScheduleToSupabase para salvar os dados corretamente
   const saveScheduleToSupabase = async () => {
     try {
       setIsSaving(true);
@@ -755,6 +720,8 @@ const SchedulePage: FC = () => {
         startOfWeek: startOfWeek.toISOString(), 
         endOfWeek: endOfWeek.toISOString()
       });
+      
+      console.log('Alterações pendentes:', pendingChanges);
 
       // Verificar se a tabela existe
       const { error: tableCheckError } = await supabase
@@ -766,32 +733,41 @@ const SchedulePage: FC = () => {
         throw new Error(`A tabela 'schedules' não existe ou você não tem permissão para acessá-la: ${tableCheckError.message}`);
       }
       
-      // Remover entradas existentes para a semana
-      const { error: deleteError } = await supabase
+      // Primeiro, buscar os registros existentes (para não perder dados)
+      const { data: existingData, error: fetchError } = await supabase
         .from('schedules')
-        .delete()
+        .select('*')
         .gte('date', startOfWeek.toISOString())
         .lte('date', endOfWeek.toISOString());
         
-      if (deleteError) {
-        console.error('Erro ao excluir registros existentes:', deleteError);
-        throw deleteError;
+      if (fetchError) {
+        console.error('Erro ao buscar registros existentes:', fetchError);
+        throw fetchError;
+      }
+      
+      // Converter registros existentes para um mapa para fácil acesso
+      const existingRecords = new Map();
+      if (existingData) {
+        existingData.forEach(record => {
+          const key = `${record.professional_id}_${format(new Date(record.date), 'yyyy-MM-dd')}`;
+          existingRecords.set(key, record);
+        });
       }
       
       // Preparar dados para inserção
-      // Construir os dados manualmente a partir do estado atual
-      // Usar currentDate para obter a semana atual
       const weekStart = startOfISOWeek(currentDate);
       const weekDays = getDaysOfWeek(weekStart);
       
       const scheduleData: Array<{
+        id?: string;
         professional_id: string;
         date: string;
         day_type: DayType;
         start_time: string;
         end_time: string;
         balance: number;
-        created_at: string;
+        created_at?: string;
+        updated_at: string;
       }> = [];
       
       // Para cada profissional ativo
@@ -810,47 +786,63 @@ const SchedulePage: FC = () => {
           const startTimeKey = `start_${cellKey}`;
           const endTimeKey = `end_${cellKey}`;
           
-          const startTime = pendingChanges[startTimeKey] || '08:00';
-          const endTime = pendingChanges[endTimeKey] || '17:00';
+          // Buscar valores de horários das alterações pendentes ou do registro existente
+          const existingRecord = existingRecords.get(cellKey);
+          
+          const startTime = pendingChanges[startTimeKey] || 
+                            (existingRecord ? existingRecord.start_time : '08:00');
+          const endTime = pendingChanges[endTimeKey] || 
+                          (existingRecord ? existingRecord.end_time : '17:00');
           
           // Calcular saldo
           const balance = calculateDayHoursBalance(day, startTime, endTime);
           
-          scheduleData.push({
+          const newRecord = {
             professional_id: professional.id,
             date: dateKey,
             day_type: dayType,
             start_time: startTime,
             end_time: endTime,
             balance: balance,
-            created_at: new Date().toISOString(),
-          });
+            updated_at: new Date().toISOString(),
+          };
+          
+          // Se o registro existir, incluir o ID para fazer um upsert
+          if (existingRecord) {
+            scheduleData.push({
+              id: existingRecord.id,
+              ...newRecord,
+              created_at: existingRecord.created_at
+            });
+          } else {
+            scheduleData.push({
+              ...newRecord,
+              created_at: new Date().toISOString()
+            });
+          }
         });
       });
       
-      console.log(`Preparados ${scheduleData.length} registros para inserção`);
+      console.log(`Preparados ${scheduleData.length} registros para inserção/atualização`);
       
       if (scheduleData.length > 0) {
-        const { data, error: insertError } = await supabase
+        // Usar upsert para inserir ou atualizar registros
+        const { data, error: upsertError } = await supabase
           .from('schedules')
-          .insert(scheduleData)
+          .upsert(scheduleData)
           .select();
           
-        if (insertError) {
-          console.error('Erro ao inserir dados:', insertError);
-          throw insertError;
+        if (upsertError) {
+          console.error('Erro ao inserir/atualizar dados:', upsertError);
+          throw upsertError;
         }
         
-        console.log(`Inseridos ${data?.length || 0} registros com sucesso`);
+        console.log(`Inseridos/atualizados ${data?.length || 0} registros com sucesso`);
       }
       
-      // Limpar mudanças pendentes
-      setPendingChanges({});
       toast.success('Escala salva com sucesso no Supabase!');
       setLastSavedTime(new Date());
       
-      // Recarregar os dados
-      loadScheduleFromSupabase();
     } catch (error) {
       console.error('Erro ao salvar escala:', error);
       toast.error(`Erro ao salvar escala: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
@@ -864,7 +856,7 @@ const SchedulePage: FC = () => {
     saveScheduleToSupabase();
   };
 
-  // Melhorar a função loadScheduleFromSupabase
+  // Melhorar a função loadScheduleFromSupabase para preservar alterações pendentes
   const loadScheduleFromSupabase = async () => {
     try {
       setIsSaving(true);
@@ -901,16 +893,27 @@ const SchedulePage: FC = () => {
           // Armazenar tipo de dia
           newSelectedTypes[cellKey] = item.day_type as DayType;
           
-          // Armazenar horários
+          // Armazenar horários com as chaves corretas
           newPendingChanges[`start_${cellKey}`] = item.start_time;
           newPendingChanges[`end_${cellKey}`] = item.end_time;
         });
         
         // Atualizar estados
         setSelectedTypes(prev => ({ ...prev, ...newSelectedTypes }));
-        setPendingChanges(prev => ({ ...prev, ...newPendingChanges }));
         
-        toast.success('Dados de escala carregados com sucesso!');
+        // Importante: Apenas adicionar novos valores, não sobrescrever alterações pendentes
+        setPendingChanges(prev => {
+          const result = { ...prev };
+          
+          // Apenas adicionar chaves que não existem ainda
+          Object.keys(newPendingChanges).forEach(key => {
+            if (!result[key]) {
+              result[key] = newPendingChanges[key];
+            }
+          });
+          
+          return result;
+        });
       }
     } catch (error) {
       console.error('Erro ao carregar escala:', error);
