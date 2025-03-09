@@ -1,4 +1,4 @@
-import { FC, useState } from 'react'
+import { FC, useState, useEffect } from 'react'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -29,7 +29,23 @@ const ProfessionalsPage: FC = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const navigate = useNavigate()
 
-  const { professionals, selectProfessional, updateProfessional } = useAppStore()
+  const { professionals, selectProfessional, updateProfessional, fetchProfessionals } = useAppStore()
+
+  // Recarregar dados ao montar o componente e garantir que estados anteriores sejam limpos
+  useEffect(() => {
+    // Verificar se há profissionais para evitar chamadas desnecessárias
+    if (professionals.length === 0) {
+      fetchProfessionals().catch(error => {
+        console.error('Erro ao buscar profissionais:', error);
+        toast.error('Não foi possível carregar a lista de profissionais');
+      });
+    }
+    
+    // Este é um bom lugar para fazer cleanup de qualquer estado prévio
+    return () => {
+      // Limpar estados globais se necessário quando o componente for desmontado
+    };
+  }, [fetchProfessionals]);
 
   const filteredProfessionals = professionals.filter(
     (professional) =>

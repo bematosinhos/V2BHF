@@ -310,10 +310,6 @@ export const useAppStore = create<AppState>()(
       addProfessional: async (professional) => {
         try {
           set({ isLoading: true })
-          console.log('Iniciando processo de adição de profissional no store', { 
-            name: professional.name, 
-            cpf: professional.cpf?.substring(0, 5) + '***' // Log seguro
-          });
 
           // Garantir que todos os campos obrigatórios estejam presentes
           const professionalWithRequiredFields = {
@@ -324,50 +320,42 @@ export const useAppStore = create<AppState>()(
           // Converter para o formato do Supabase (snake_case)
           const professionalData = convertToSupabaseProfessional(professionalWithRequiredFields)
 
-          console.log('Enviando dados para o serviço de profissionais');
-          const { data, error } = await professionalService.addProfessional(professionalData)
-          
-          if (error) {
-            console.error('Erro retornado pelo serviço de profissionais:', { 
-              message: error.message,
-              code: error.code,
-              details: error.details
-            });
-            
-            // Tratamento de erros específicos
-            if (error.code === '23505') {
-              throw new Error('Este profissional já existe no sistema. Verifique CPF ou email.');
-            } else if (error.code === 'TIMEOUT' || error.message.includes('tempo limite')) {
-              throw new Error('A operação demorou muito tempo. Verifique sua conexão e tente novamente.');
-            } else if (error.code === 'MAX_RETRIES_EXCEEDED') {
-              throw new Error('Não foi possível completar a operação após várias tentativas. Tente novamente mais tarde.');
-            } else {
-              throw error;
-            }
+          // Adicionar timeout para evitar que a operação fique presa indefinidamente
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Timeout ao adicionar profissional')), 10000);
+          });
+
+          // Executar a requisição com timeout
+          const result = await Promise.race([
+            professionalService.addProfessional(professionalData),
+            timeoutPromise
+          ]) as { data: any, error: any };
+
+          // Verificar se houve erro
+          if (result.error) {
+            console.error('Erro do Supabase ao adicionar profissional:', result.error);
+            throw result.error;
           }
 
-          if (data?.[0]) {
-            console.log('Profissional adicionado com sucesso, atualizando store');
-            // Converter de volta para camelCase
-            const newProfessional = convertToAppProfessional(data[0] as SupabaseProfessional)
-
-            set((state) => ({
-              professionals: [...state.professionals, newProfessional],
-            }))
-
-            return newProfessional
-          } else {
-            console.warn('Resposta sem dados ao adicionar profissional');
-            throw new Error('Não foi possível adicionar o profissional. Tente novamente.');
+          // Verificar se retornou dados
+          if (!result.data || !result.data[0]) {
+            console.error('Nenhum dado retornado ao adicionar profissional');
+            throw new Error('Falha ao adicionar profissional: nenhum dado retornado');
           }
+
+          // Converter de volta para camelCase
+          const newProfessional = convertToAppProfessional(result.data[0] as SupabaseProfessional)
+
+          // Atualizar o estado
+          set((state) => ({
+            professionals: [...state.professionals, newProfessional],
+          }))
+
+          return newProfessional
         } catch (error) {
-          console.error('Erro ao adicionar profissional (store):', error);
-          // Rethrow para que a UI possa tratar o erro
-          throw error instanceof Error 
-            ? error 
-            : new Error('Erro desconhecido ao adicionar profissional');
+          console.error('Erro ao adicionar profissional:', error)
+          throw error
         } finally {
-          console.log('Finalizando operação de adição de profissional');
           set({ isLoading: false })
         }
       },

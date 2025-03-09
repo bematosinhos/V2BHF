@@ -40,6 +40,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Info, Loader2 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { supabase } from '@/lib/supabase'
 
 // Validações personalizadas
 const cpfRegex = /^\d{3}\.\d{3}\.\d{3}-\d{2}$|^\d{11}$/
@@ -184,13 +185,34 @@ const RegisterPage: FC = () => {
 
   async function onSubmit(data: ProfessionalFormValues) {
     try {
-      setIsSubmitting(true)
+      // Reinicializar estado de envio
+      setIsSubmitting(true);
       
-      // Mostrar toast de progresso
-      const loadingToast = toast.loading('Processando cadastro...');
+      // Adicionar timeout para evitar que o botão fique travado indefinidamente
+      const timeoutId = setTimeout(() => {
+        // Se após 15 segundos o processo não concluiu, assumimos que houve erro
+        if (isSubmitting) {
+          setIsSubmitting(false);
+          toast.error('A operação demorou muito tempo. Tente novamente.');
+        }
+      }, 15000);
+      
+      // Verificar conexão com Supabase antes de prosseguir
+      try {
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) {
+          throw new Error(`Erro de conexão com o serviço: ${sessionError.message}`);
+        }
+      } catch (connError) {
+        console.error('Erro ao verificar conexão:', connError);
+        toast.error('Não foi possível conectar ao serviço. Verifique sua conexão de internet.');
+        setIsSubmitting(false);
+        clearTimeout(timeoutId);
+        return;
+      }
 
       // Formatar o horário de trabalho
-      const formattedWorkHours = `${data.workStartTime}-${data.workEndTime}`
+      const formattedWorkHours = `${data.workStartTime}-${data.workEndTime}`;
 
       // Preparar os dados do profissional
       const professionalData: Omit<Professional, 'id'> = {
@@ -207,49 +229,59 @@ const RegisterPage: FC = () => {
         email: data.email,
         status: data.status,
         avatarUrl: professionalToEdit?.avatarUrl ?? '',
-      }
+      };
 
-      // Criar timeout para garantir que a operação não fique travada
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Tempo limite excedido. Verifique sua conexão.')), 15000);
-      });
-
-      // Executar a operação com timeout
+      let result = null;
+      
       if (editId) {
         // Atualizar profissional existente
-        await Promise.race([updateProfessional(editId, professionalData), timeoutPromise]);
-        toast.dismiss(loadingToast);
-        toast.success('Profissional atualizado com sucesso!');
+        result = await updateProfessional(editId, professionalData);
+        if (result) {
+          toast.success('Profissional atualizado com sucesso!');
+        } else {
+          throw new Error('Não foi possível atualizar o profissional');
+        }
       } else {
-        // Adicionar novo profissional com timeout
-        await Promise.race([addProfessional(professionalData), timeoutPromise]);
-        toast.dismiss(loadingToast);
-        toast.success('Profissional cadastrado com sucesso!');
-        form.reset(defaultValues);
+        // Adicionar novo profissional
+        result = await addProfessional(professionalData);
+        if (result) {
+          toast.success('Profissional cadastrado com sucesso!');
+          // Limpar o formulário ANTES de navegar
+          form.reset(defaultValues);
+        } else {
+          throw new Error('Não foi possível cadastrar o profissional');
+        }
       }
 
+      // Cancelar o timeout, pois a operação foi concluída
+      clearTimeout(timeoutId);
+      
+      // Garantir que o estado isSubmitting seja resetado antes de navegar
+      setIsSubmitting(false);
+      
       // Redirecionar para a lista de profissionais
-      void navigate('/professionals');
+      navigate('/professionals');
+      
     } catch (error) {
-      // Identificar o tipo de erro
+      console.error('Erro ao salvar profissional:', error);
+      
+      // Mensagem de erro mais específica
       let errorMessage = 'Erro ao salvar profissional. Tente novamente.';
       
       if (error instanceof Error) {
-        errorMessage = error.message;
-        
-        // Mensagens específicas para erros comuns
-        if (errorMessage.includes('tempo limite') || errorMessage.includes('timeout')) {
-          errorMessage = 'Tempo limite excedido. Verifique sua conexão com a internet.';
-        } else if (errorMessage.includes('uniqueness') || errorMessage.includes('já existe')) {
-          errorMessage = 'Este profissional já existe. Verifique os dados.';
-        } else if (errorMessage.includes('rede') || errorMessage.includes('network')) {
-          errorMessage = 'Erro de conexão com o servidor. Verifique sua internet.';
+        // Se for um erro do Supabase, pode ter uma mensagem específica
+        if (error.message.includes('duplicate')) {
+          errorMessage = 'Já existe um profissional com esses dados.';
+        } else if (error.message.includes('not found')) {
+          errorMessage = 'Tabela de profissionais não encontrada. Contate o suporte.';
+        } else {
+          errorMessage = `Erro: ${error.message}`;
         }
       }
       
-      console.error('Erro ao salvar profissional:', error);
       toast.error(errorMessage);
     } finally {
+      // Garantir que isSubmitting seja sempre resetado
       setIsSubmitting(false);
     }
   }
@@ -689,12 +721,11 @@ const RegisterPage: FC = () => {
                   <Button 
                     type="submit" 
                     disabled={isSubmitting}
-                    className={isSubmitting ? "opacity-80" : ""}
                   >
                     {isSubmitting ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        {editId ? 'Salvando alterações...' : 'Cadastrando profissional...'}
+                        {editId ? 'Salvando...' : 'Cadastrando...'}
                       </>
                     ) : editId ? (
                       'Salvar Alterações'
