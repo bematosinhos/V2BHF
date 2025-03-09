@@ -634,29 +634,60 @@ const SchedulePage: FC = () => {
     };
   }, [hasUnsavedChanges]);
 
-  // Adicionar efeito para carregar dados ao montar o componente
+  // Adicionar flag para controlar o carregamento inicial
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
+
+  // Adicionar efeito para carregar dados ao montar o componente - versão melhorada
   useEffect(() => {
-    // Carregar os dados iniciais do Supabase quando o componente for montado
-    loadScheduleFromSupabase();
+    // Função assíncrona para carregar dados iniciais
+    const loadInitialData = async () => {
+      console.log('Iniciando carregamento inicial de dados');
+      
+      // Garantir que os dados sejam carregados
+      try {
+        await loadScheduleFromSupabase();
+        
+        // Marcar carregamento inicial como concluído
+        setInitialLoadDone(true);
+        console.log('Carregamento inicial concluído com sucesso');
+      } catch (error) {
+        console.error('Erro no carregamento inicial:', error);
+        toast.error('Erro ao carregar dados iniciais. Tente recarregar a página.');
+      }
+    };
     
-    // Esta é uma operação de montagem única, sem dependências
+    // Executar carregamento inicial
+    loadInitialData();
+    
+    // Adicionar o listener para recarregar ao focar a página após navegação
+    const handleFocus = () => {
+      console.log('Página recebeu foco, recarregando dados...');
+      loadScheduleFromSupabase();
+    };
+    
+    // Adicionar evento para recarregar dados quando o usuário retornar à página
+    window.addEventListener('focus', handleFocus);
+    
+    // Limpar listener ao desmontar
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []); // Array de dependências vazio para executar apenas uma vez na montagem
 
-  // Modificar a função loadScheduleFromSupabase para carregar todos os dados
+  // Modificar a função loadScheduleFromSupabase para garantir carregamento correto
   const loadScheduleFromSupabase = async () => {
     try {
-      // Não ativar isSaving durante o carregamento normal
-      // setIsSaving(true);
+      console.log('Carregando dados da escala do Supabase...');
       
       const startOfWeek = startOfISOWeek(currentDate);
       const endOfWeek = endOfISOWeek(currentDate);
       
-      console.log('Carregando dados da semana:', { 
-        startOfWeek: startOfWeek.toISOString(), 
-        endOfWeek: endOfWeek.toISOString() 
+      console.log('Período:', { 
+        startOfWeek: format(startOfWeek, 'dd/MM/yyyy'), 
+        endOfWeek: format(endOfWeek, 'dd/MM/yyyy')
       });
       
-      // Carregar TODOS os registros da semana, não apenas do profissional selecionado
+      // Carregar TODOS os registros da semana
       const { data, error } = await supabase
         .from('schedules')
         .select('*')
@@ -675,31 +706,58 @@ const SchedulePage: FC = () => {
         const newSelectedTypes: Record<string, DayType> = {};
         const newPendingChanges: Record<string, any> = {};
         
+        // Processando cada registro
         data.forEach(item => {
-          const dateKey = format(new Date(item.date), 'yyyy-MM-dd');
-          const cellKey = `${item.professional_id}_${dateKey}`;
-          
-          // Armazenar tipo de dia
-          newSelectedTypes[cellKey] = item.day_type as DayType;
-          
-          // Armazenar horários com as chaves corretas - SEMPRE atualize com os valores do banco
-          newPendingChanges[`start_${cellKey}`] = item.start_time;
-          newPendingChanges[`end_${cellKey}`] = item.end_time;
+          try {
+            const dateKey = format(new Date(item.date), 'yyyy-MM-dd');
+            const cellKey = `${item.professional_id}_${dateKey}`;
+            
+            console.log(`Processando registro: ${cellKey}`, item);
+            
+            // Armazenar tipo de dia
+            newSelectedTypes[cellKey] = item.day_type as DayType;
+            
+            // Armazenar horários com as chaves corretas
+            newPendingChanges[`start_${cellKey}`] = item.start_time;
+            newPendingChanges[`end_${cellKey}`] = item.end_time;
+          } catch (itemError) {
+            console.error('Erro ao processar item:', item, itemError);
+          }
         });
         
-        // Atualizar estados - SEMPRE substituir com os dados do banco
-        setSelectedTypes(prev => ({ ...prev, ...newSelectedTypes }));
-        setPendingChanges(prev => ({ ...prev, ...newPendingChanges }));
+        console.log('Novos valores a serem aplicados:', { 
+          tipos: Object.keys(newSelectedTypes).length,
+          horarios: Object.keys(newPendingChanges).length
+        });
+        
+        // Atualizar estados - Com verificação de valores recebidos
+        if (Object.keys(newSelectedTypes).length > 0) {
+          setSelectedTypes(prev => {
+            const result = { ...prev, ...newSelectedTypes };
+            console.log('Tipos de dia atualizados:', Object.keys(result).length);
+            return result;
+          });
+        }
+        
+        if (Object.keys(newPendingChanges).length > 0) {
+          setPendingChanges(prev => {
+            const result = { ...prev, ...newPendingChanges };
+            console.log('Horários atualizados:', Object.keys(result).length);
+            return result;
+          });
+        }
         
         // Calcular saldo de horas com os novos dados carregados
         calculateOvertimeBalance();
+      } else {
+        console.log('Nenhum registro encontrado para o período selecionado');
       }
+      
+      return true; // Indicar sucesso
     } catch (error) {
       console.error('Erro ao carregar escala:', error);
       toast.error('Erro ao carregar dados da escala.');
-    } finally {
-      // Não desativar isSaving aqui, já que não o ativamos
-      // setIsSaving(false);
+      return false; // Indicar falha
     }
   };
 

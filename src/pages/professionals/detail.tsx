@@ -99,13 +99,56 @@ const ProfessionalDetailPage: FC = () => {
     updated_at: string;
   }>>([]);
   
-  // Função para buscar os registros de escala do Supabase
+  // Adicionar efeito para garantir carregamento dos dados iniciais
+  useEffect(() => {
+    const loadInitialData = async () => {
+      if (id && dateRange?.from && dateRange?.to) {
+        console.log('Iniciando carregamento de dados para o profissional:', id);
+        
+        try {
+          // Carregar detalhes do profissional
+          await loadProfessionalDetails();
+          
+          // Buscar registros da tabela schedules
+          await loadScheduleRecordsFromSupabase();
+          
+          // Foco da página (para recarregar dados quando retornar)
+          const handleFocus = () => {
+            if (id && dateRange?.from && dateRange?.to) {
+              console.log('Página recebeu foco, recarregando dados do profissional');
+              loadScheduleRecordsFromSupabase();
+            }
+          };
+          
+          window.addEventListener('focus', handleFocus);
+          
+          return () => {
+            window.removeEventListener('focus', handleFocus);
+          };
+        } catch (error) {
+          console.error('Erro ao carregar dados iniciais:', error);
+          toast.error('Erro ao carregar dados. Tente recarregar a página.');
+        }
+      }
+    };
+    
+    loadInitialData();
+  }, [id, dateRange]);
+
+  // Melhorar a função que carrega registros do Supabase
   const loadScheduleRecordsFromSupabase = async () => {
-    if (!dateRange?.from || !dateRange?.to || !id) return;
+    if (!dateRange?.from || !dateRange?.to || !id) {
+      console.warn('Dados insuficientes para carregar registros:', { id, dateRange });
+      return false;
+    }
     
     try {
+      console.log('Carregando registros de escala para o profissional:', id);
+      
       const fromDate = format(dateRange.from, 'yyyy-MM-dd');
       const toDate = format(dateRange.to, 'yyyy-MM-dd');
+      
+      console.log('Período:', { fromDate, toDate });
       
       // Buscar registros de escala do período selecionado
       const { data, error } = await supabase
@@ -118,38 +161,60 @@ const ProfessionalDetailPage: FC = () => {
       if (error) {
         console.error('Erro ao buscar registros de escala:', error);
         toast.error('Erro ao carregar dados de escala');
-        return;
+        return false;
       }
       
       if (data) {
         console.log(`Carregados ${data.length} registros de escala do Supabase`);
-        setScheduleRecords(data);
+        
+        // Ordenar registros por data
+        const sortedData = [...data].sort((a, b) => 
+          new Date(a.date).getTime() - new Date(b.date).getTime()
+        );
+        
+        setScheduleRecords(sortedData);
+        
+        // Calcular saldo imediatamente
+        const newBalance = sortedData.reduce((sum, record) => sum + (record.balance || 0), 0);
+        
+        console.log('Saldo calculado:', newBalance);
+        
+        // Atualizar o estado do profissional
+        setProfessionalDetails(prev => ({
+          ...prev,
+          balanceHours: newBalance
+        }));
+        
+        return true;
+      } else {
+        console.log('Nenhum registro de escala encontrado para o período');
+        return false;
       }
     } catch (error) {
       console.error('Erro ao buscar registros de escala:', error);
       toast.error('Erro ao carregar dados de escala');
+      return false;
     }
   };
-  
-  // Efeito para carregar registros de escala quando o período mudar
-  useEffect(() => {
-    if (dateRange?.from && dateRange?.to && id) {
-      loadScheduleRecordsFromSupabase();
-    }
-  }, [dateRange, id]);
 
-  // Calcular banco de horas com base nos registros da tabela schedules
+  // Melhorar a função de cálculo do saldo de horas
   const calculateOvertimeBalance = () => {
-    if (!dateRange?.from || !dateRange?.to || !id || scheduleRecords.length === 0) return 0;
+    if (!scheduleRecords || scheduleRecords.length === 0) {
+      console.warn('Nenhum registro disponível para calcular o saldo');
+      return 0;
+    }
     
-    // Calcular a diferença entre horas trabalhadas e esperadas
-    let totalBalance = 0;
+    console.log('Calculando saldo com base em', scheduleRecords.length, 'registros');
     
-    // Usar diretamente o campo balance de cada registro
-    scheduleRecords.forEach(record => {
-      // Somar o saldo de horas de cada registro
-      totalBalance += record.balance || 0;
-    });
+    // Calcular o saldo diretamente dos registros schedules
+    const totalBalance = scheduleRecords.reduce((sum, record) => {
+      // Verificar se o saldo é um número válido
+      const balance = typeof record.balance === 'number' ? record.balance : 
+                    parseFloat(record.balance as any) || 0;
+      return sum + balance;
+    }, 0);
+    
+    console.log('Saldo total calculado:', totalBalance);
     
     return totalBalance;
   };
@@ -344,18 +409,6 @@ const ProfessionalDetailPage: FC = () => {
     }
   }
   
-  // Carregar detalhes do profissional ao montar o componente
-  useEffect(() => {
-    if (id) {
-      loadProfessionalDetails();
-      
-      // Também carregar os registros de escala se o período estiver definido
-      if (dateRange?.from && dateRange?.to) {
-        loadScheduleRecordsFromSupabase();
-      }
-    }
-  }, [id]);
-
   // Adicionar efeito para recalcular saldo quando o período mudar
   useEffect(() => {
     if (dateRange?.from && dateRange?.to && id) {
