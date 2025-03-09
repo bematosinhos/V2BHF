@@ -23,11 +23,6 @@ if (import.meta.env.DEV && (isTempKey || isLocalDb)) {
   )
 }
 
-// Verificar a conectividade com a internet
-function checkConnection() {
-  return navigator.onLine
-}
-
 // Validação para evitar erros ao inicializar com valores inválidos
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error(
@@ -36,93 +31,91 @@ if (!supabaseUrl || !supabaseAnonKey) {
   )
 }
 
-// Função para criar um fetch personalizado com retry para maior confiabilidade
-const createRetryFetch = (maxRetries = 3, timeout = 60000) => {
-  return async (url: RequestInfo | URL, options: RequestInit = {}): Promise<Response> => {
-    let attempt = 0;
-    let lastError: Error | null = null;
+// Inicialize o cliente Supabase
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-    // Configurar o AbortController para timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+// Status da conexão
+let isOffline = false;
+let lastConnectionCheck = 0;
+const CONNECTION_CHECK_INTERVAL = 30000; // 30 segundos
 
-    // Mesclar signal do timeout com options existentes
-    const fetchOptions = {
-      ...options,
-      signal: controller.signal,
-    };
+// Monitorar status de conexão
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => {
+    console.log('🟢 Aplicação está online');
+    isOffline = false;
+  });
+  
+  window.addEventListener('offline', () => {
+    console.log('🔴 Aplicação está offline');
+    isOffline = true;
+  });
+}
 
-    while (attempt < maxRetries) {
-      try {
-        if (!checkConnection()) {
-          throw new Error('Sem conexão com a internet');
-        }
-
-        attempt++;
-        console.log(`Tentativa de fetch ${attempt}/${maxRetries} para ${url.toString()}`);
-        
-        const response = await fetch(url, fetchOptions);
-        
-        // Limpar o timeout
-        clearTimeout(timeoutId);
-        
-        // Se a resposta não for bem-sucedida, tratar como erro
-        if (!response.ok) {
-          throw new Error(`Resposta HTTP não OK: ${response.status}`);
-        }
-        
-        return response;
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
-        console.error(`Erro na tentativa ${attempt}:`, lastError);
-        
-        // Se for o último retry, rejeitar
-        if (attempt >= maxRetries) {
-          break;
-        }
-        
-        // Backoff exponencial
-        const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
-        console.log(`Aguardando ${delay}ms antes da próxima tentativa...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-    }
+// Verificar status da conexão com o Supabase
+export async function isSupabaseAvailable(): Promise<boolean> {
+  // Se o navegador reporta que estamos offline, nem tenta
+  if (isOffline) {
+    return false;
+  }
+  
+  // Limitar frequência de verificações
+  const now = Date.now();
+  if (now - lastConnectionCheck < CONNECTION_CHECK_INTERVAL) {
+    return !isOffline; // Retorna o último status conhecido
+  }
+  
+  lastConnectionCheck = now;
+  
+  try {
+    const { error } = await supabase.auth.getSession();
+    const isAvailable = !error;
     
-    // Limpar o timeout por precaução
-    clearTimeout(timeoutId);
+    // Atualizar status
+    isOffline = !isAvailable;
     
-    // Se chegou aqui, todas as tentativas falharam
-    throw lastError || new Error('Máximo de tentativas excedido');
-  };
-};
+    return isAvailable;
+  } catch (error) {
+    console.error('Erro ao verificar conexão com Supabase:', error);
+    isOffline = true;
+    return false;
+  }
+}
 
-// Inicialize o cliente Supabase com configurações otimizadas
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-  },
-  global: {
-    // Usa o fetch personalizado com retry
-    fetch: createRetryFetch(3, 60000),
-  },
-  db: {
-    schema: 'public',
-  },
-  // Aumentando timeout para operações realtime
-  realtime: {
-    timeout: 60000,
-  },
-})
+// Função para tratar respostas do Supabase de forma consistente
+export function handleSupabaseError(error: any, customMessage?: string): Error {
+  if (!error) return new Error(customMessage || 'Erro desconhecido');
+  
+  const message = error.message || error.error_description || customMessage || 'Erro na operação';
+  console.error('Erro do Supabase:', { message, details: error });
+  
+  // Customizar mensagens baseado no tipo de erro
+  if (message.includes('network') || message.includes('fetch')) {
+    return new Error('Erro de conexão com o servidor. Verifique sua internet.');
+  }
+  
+  return new Error(message);
+}
+
+// Função auxiliar para adicionar timeout em operações do Supabase
+export function withSupabaseTimeout<T>(
+  operation: Promise<T>,
+  timeoutMs: number = 15000,
+  operationName: string = 'operação'
+): Promise<T> {
+  return Promise.race([
+    operation,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`Tempo limite excedido ao ${operationName}. Verifique sua conexão.`));
+      }, timeoutMs);
+    })
+  ]);
+}
 
 // Função de diagnóstico para verificar a conexão com o Supabase
 export async function checkSupabaseConnection() {
   try {
-    if (!checkConnection()) {
-      return { success: false, error: new Error('Sem conexão com a internet') };
-    }
-    
     const { error } = await supabase.auth.getSession()
 
     if (error) {

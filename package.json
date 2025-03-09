@@ -15,7 +15,8 @@
     "migrate:schema": "ts-node scripts/schema.sql",
     "migrate:data": "ts-node scripts/migration.ts",
     "supabase:start": "supabase start",
-    "supabase:stop": "supabase stop"
+    "supabase:stop": "supabase stop",
+    "test:professional": "ts-node src/tests/professional-test.ts"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": "eslint --cache --fix",
