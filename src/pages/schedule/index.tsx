@@ -75,23 +75,6 @@ type DayType = 'normal' | 'falta' | 'folga' | 'ferias' | 'atestado' | 'dsr'
 //   holidayName?: string;
 // }
 
-// Criar um hook customizado de debounce para o salvamento automático
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-}
-
 // Modificar a definição do tipo Schedule para estar sendo utilizada
 // Alterando de interface para export type para permitir seu uso em outros arquivos
 export type Schedule = {
@@ -121,9 +104,6 @@ const SchedulePage: FC = () => {
   // Referência para alterações não salvas ao sair da página
   const hasUnsavedChanges = Object.keys(pendingChanges).length > 0
   
-  // Debounce para salvamento automático
-  const debouncedPendingChanges = useDebounce(pendingChanges, 3000);
-
   const selectedProfessional = professionals.find((p) => p.id === selectedProfessionalId)
 
   // Gerar anos para o seletor (5 anos para trás e 5 para frente)
@@ -650,14 +630,7 @@ const SchedulePage: FC = () => {
     };
   }, [hasUnsavedChanges]);
 
-  // Efeito para salvamento automático após debounce
-  useEffect(() => {
-    if (Object.keys(debouncedPendingChanges).length > 0) {
-      saveChanges(debouncedPendingChanges);
-    }
-  }, [debouncedPendingChanges]);
-
-  // Função para salvar as alterações (usada tanto pelo salvamento automático quanto pelo botão)
+  // Função para salvar as alterações (usada pelo botão de salvamento)
   const saveChanges = async (changes = pendingChanges) => {
     if (Object.keys(changes).length === 0) return;
     
