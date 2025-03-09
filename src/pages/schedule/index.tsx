@@ -81,6 +81,7 @@ const SchedulePage: FC = () => {
   const [currentDate, setCurrentDate] = useState<Date>(new Date())
   const [selectedYear, setSelectedYear] = useState<number>(getYear(new Date()))
   const [selectedMonth, setSelectedMonth] = useState<number>(getMonth(new Date()))
+  const [forceUpdate, setForceUpdate] = useState(0)
 
   const selectedProfessional = professionals.find((p) => p.id === selectedProfessionalId)
 
@@ -97,6 +98,12 @@ const SchedulePage: FC = () => {
     newDate.setMonth(selectedMonth)
     setCurrentDate(newDate)
   }, [selectedYear, selectedMonth])
+
+  // Atualizar interface quando forceUpdate ou timeRecords mudar
+  useEffect(() => {
+    // Apenas para garantir que a interface seja atualizada
+    console.log('Atualizando interface', { forceUpdate, timeRecordsLength: timeRecords.length });
+  }, [forceUpdate, timeRecords]);
 
   // Gerar as semanas do mês
   const getWeeksOfMonth = () => {
@@ -141,9 +148,18 @@ const SchedulePage: FC = () => {
     return differenceInMinutes(endDate, startDate) - 60
   }
 
+  // Tipo de dia selecionado para cada data
+  const [selectedTypes, setSelectedTypes] = useState<Record<string, DayType>>({})
+
   // Obter o tipo de dia com base nos registros
   const getDayType = (date: Date, records: TimeRecord[]): DayType => {
     const dateString = format(date, 'yyyy-MM-dd')
+    
+    // Se tiver um tipo selecionado no estado local, use-o primeiro
+    if (selectedTypes[dateString]) {
+      return selectedTypes[dateString]
+    }
+    
     const record = records.find(
       (r) => r.date === dateString && r.professionalId === selectedProfessionalId,
     )
@@ -338,60 +354,77 @@ const SchedulePage: FC = () => {
     return `${hours}h ${mins}min`
   }
 
-  // Update updateDayType para incluir tratamento adequado conforme regras de negócio
+  // Função simplificada para atualizar o tipo do dia
   const updateDayType = (date: Date, type: DayType) => {
     const dateString = format(date, 'yyyy-MM-dd')
     const storeType = dayTypeMapping[type]
+    
+    // Primeiro atualiza o estado local para feedback imediato
+    setSelectedTypes(prev => ({
+      ...prev,
+      [dateString]: type
+    }))
+    
+    console.log(`Atualizando dia ${dateString} para tipo ${type}`)
+    
     const existingRecord = timeRecords.find(
       (r) => r.date === dateString && r.professionalId === selectedProfessionalId,
     )
 
-    // Definir os valores padrão de checkIn e checkOut
-    const defaultValues = {
-      checkIn: defaultCheckIn,
-      checkOut: defaultCheckOut,
+    // Preparar dados para atualização
+    let recordUpdate: Partial<TimeRecord> = { 
+      type: storeType,
+      notes: ''
     }
-
-    // Tratar campos específicos conforme o tipo
-    let recordUpdate: Partial<TimeRecord> = { type: storeType }
-
-    // Para tipos que não sejam 'normal', limpar campos de horário
+    
+    // Configurar registros conforme o tipo
     if (type !== 'normal') {
       recordUpdate.checkIn = ''
       recordUpdate.checkOut = ''
-
-      // Configurar notas específicas para cada tipo
-      if (type === 'falta') {
-        recordUpdate.notes = 'falta'
-      } else if (type === 'atestado') {
-        recordUpdate.notes = 'atestado'
-      } else if (type === 'ferias') {
-        recordUpdate.notes = 'férias'
-      } else if (type === 'folga') {
-        recordUpdate.notes = 'folga'
-      } else if (type === 'dsr') {
-        recordUpdate.notes = 'descanso semanal remunerado'
+      
+      // Adicionar notas específicas
+      switch (type) {
+        case 'falta':
+          recordUpdate.notes = 'falta'
+          break
+        case 'atestado':
+          recordUpdate.notes = 'atestado'
+          break
+        case 'ferias':
+          recordUpdate.notes = 'férias'
+          break
+        case 'folga':
+          recordUpdate.notes = 'folga'
+          break
+        case 'dsr':
+          recordUpdate.notes = 'descanso semanal remunerado'
+          break
       }
     } else {
-      // Para tipo normal, definir horários padrão se não existirem
-      if (!existingRecord?.checkIn || !existingRecord?.checkOut) {
-        recordUpdate = { ...recordUpdate, ...defaultValues }
-      }
-      recordUpdate.notes = ''
+      // Para tipo normal, usar os horários padrão
+      recordUpdate.checkIn = defaultCheckIn
+      recordUpdate.checkOut = defaultCheckOut
     }
 
-    if (existingRecord) {
-      void updateTimeRecord(existingRecord.id, recordUpdate)
-    } else if (selectedProfessionalId) {
-      void addTimeRecord({
-        professionalId: selectedProfessionalId,
-        date: dateString,
-        checkIn: recordUpdate.checkIn ?? '',
-        checkOut: recordUpdate.checkOut ?? '',
-        type: storeType,
-        notes: recordUpdate.notes ?? '',
-      })
-    }
+    // Atualizar ou criar o registro
+    setTimeout(() => {
+      if (existingRecord) {
+        updateTimeRecord(existingRecord.id, recordUpdate)
+          .then(() => console.log('Registro atualizado com sucesso'))
+          .catch(err => console.error('Erro ao atualizar registro:', err))
+      } else if (selectedProfessionalId) {
+        addTimeRecord({
+          professionalId: selectedProfessionalId,
+          date: dateString,
+          checkIn: recordUpdate.checkIn || '',
+          checkOut: recordUpdate.checkOut || '',
+          type: storeType,
+          notes: recordUpdate.notes || '',
+        })
+          .then(() => console.log('Registro criado com sucesso'))
+          .catch(err => console.error('Erro ao criar registro:', err))
+      }
+    }, 0)
   }
 
   // Calcular total de horas trabalhadas no mês
@@ -578,6 +611,19 @@ const SchedulePage: FC = () => {
     window.open(`mailto:${email}?subject=${encodedSubject}&body=${encodedBody}`, '_blank')
   }
 
+  // Helper para transformar o tipo em texto formatado
+  const formatDayType = (type: DayType): string => {
+    const typeMap: Record<DayType, string> = {
+      normal: 'Normal',
+      falta: 'Falta',
+      folga: 'Folga',
+      ferias: 'Férias',
+      atestado: 'Atestado',
+      dsr: 'DSR'
+    };
+    return typeMap[type] || 'Normal';
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -589,8 +635,8 @@ const SchedulePage: FC = () => {
             </p>
           </div>
 
-          {/* Seletor de Ano e Mês */}
-          <div className="flex items-center gap-2">
+          {/* Seletor de Ano e Mês - Versão Desktop */}
+          <div className="hidden md:flex items-center gap-2">
             <Select
               value={selectedMonth.toString()}
               onValueChange={(value) => setSelectedMonth(parseInt(value))}
@@ -627,111 +673,159 @@ const SchedulePage: FC = () => {
               variant="outline"
               size="icon"
               onClick={() => {
-                const now = new Date()
-                setSelectedMonth(getMonth(now))
-                setSelectedYear(getYear(now))
+                setSelectedYear(getYear(new Date()))
+                setSelectedMonth(getMonth(new Date()))
               }}
+              title="Ir para o mês atual"
             >
               <CalendarIcon className="h-4 w-4" />
             </Button>
+          </div>
+          
+          {/* Seletor de Ano e Mês - Versão Mobile */}
+          <div className="md:hidden grid grid-cols-2 gap-2">
+            <div className="col-span-2 flex items-center justify-between">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (selectedMonth === 0) {
+                    setSelectedMonth(11)
+                    setSelectedYear(selectedYear - 1)
+                  } else {
+                    setSelectedMonth(selectedMonth - 1)
+                  }
+                }}
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Anterior
+              </Button>
+              
+              <span className="font-medium capitalize">
+                {format(new Date(selectedYear, selectedMonth, 1), 'MMMM yyyy', { locale: ptBR })}
+              </span>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (selectedMonth === 11) {
+                    setSelectedMonth(0)
+                    setSelectedYear(selectedYear + 1)
+                  } else {
+                    setSelectedMonth(selectedMonth + 1)
+                  }
+                }}
+              >
+                Próximo
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
+            
             <Button
               variant="outline"
-              size="icon"
-              onClick={() => setCurrentDate(subMonths(currentDate, 1))}
+              size="sm"
+              className="col-span-2"
+              onClick={() => {
+                setSelectedYear(getYear(new Date()))
+                setSelectedMonth(getMonth(new Date()))
+              }}
             >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setCurrentDate(addMonths(currentDate, 1))}
-            >
-              <ChevronRight className="h-4 w-4" />
+              <CalendarIcon className="h-4 w-4 mr-2" />
+              Ir para o mês atual
             </Button>
           </div>
         </div>
 
         {/* Legenda */}
-        <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
-          <span className="font-medium">Legenda:</span>
-          <Badge
-            variant="outline"
-            className="border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-900 dark:text-blue-300"
-          >
-            Normal
-          </Badge>
-          <Badge
-            variant="outline"
-            className="border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900 dark:text-red-300"
-          >
-            Falta
-          </Badge>
-          <Badge
-            variant="outline"
-            className="border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-          >
-            Folga
-          </Badge>
-          <Badge
-            variant="outline"
-            className="border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900 dark:text-green-300"
-          >
-            Férias
-          </Badge>
-          <Badge
-            variant="outline"
-            className="border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-800 dark:bg-purple-900 dark:text-purple-300"
-          >
-            Atestado
-          </Badge>
-          <Badge
-            variant="outline"
-            className="border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900 dark:text-amber-300"
-          >
-            DSR
-          </Badge>
-          <Separator orientation="vertical" className="h-4" />
-          <div className="flex items-center gap-1">
-            <div className="h-3 w-3 rounded-full bg-amber-50 dark:bg-amber-700"></div>
-            <span>Feriado</span>
+        <div className="text-muted-foreground text-sm">
+          <div className="font-medium mb-2">Legenda:</div>
+          <div className="flex flex-wrap gap-2">
+            <Badge
+              variant="outline"
+              className="border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-900 dark:text-blue-300"
+            >
+              Normal
+            </Badge>
+            <Badge
+              variant="outline"
+              className="border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900 dark:text-red-300"
+            >
+              Falta
+            </Badge>
+            <Badge
+              variant="outline"
+              className="border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+            >
+              Folga
+            </Badge>
+            <Badge
+              variant="outline"
+              className="border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900 dark:text-green-300"
+            >
+              Férias
+            </Badge>
+            <Badge
+              variant="outline"
+              className="border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-800 dark:bg-purple-900 dark:text-purple-300"
+            >
+              Atestado
+            </Badge>
+            <Badge
+              variant="outline"
+              className="border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900 dark:text-amber-300"
+            >
+              DSR
+            </Badge>
           </div>
-          <div className="flex items-center gap-1">
-            <div className="h-3 w-3 rounded-full bg-blue-50 dark:bg-blue-700"></div>
-            <span>Hoje</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="h-3 w-3 rounded-full bg-gray-50 dark:bg-gray-600"></div>
-            <span>Fim de Semana</span>
+          
+          <div className="flex flex-wrap gap-3 mt-2">
+            <div className="flex items-center gap-1">
+              <div className="h-3 w-3 rounded-full bg-amber-50 dark:bg-amber-700"></div>
+              <span>Feriado</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="h-3 w-3 rounded-full bg-blue-50 dark:bg-blue-700"></div>
+              <span>Hoje</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="h-3 w-3 rounded-full bg-gray-50 dark:bg-gray-600"></div>
+              <span>Fim de Semana</span>
+            </div>
           </div>
         </div>
 
         {/* Resumo do Mês */}
         <Card>
-          <CardHeader>
-            <CardTitle>Resumo do Mês</CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Resumo do Mês</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="flex flex-col">
                 <span className="text-muted-foreground text-sm">Horas Trabalhadas</span>
-                <span className="text-2xl font-bold">
-                  {formatWorkedTime(calculateMonthlyHours())}
-                </span>
-                <span className="text-muted-foreground text-xs">
-                  Meta: {selectedProfessional ? `${selectedProfessional.workHours}h` : '0h'} mensais
-                </span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-bold">
+                    {formatWorkedTime(calculateMonthlyHours())}
+                  </span>
+                  <span className="text-muted-foreground text-xs">
+                    Meta: {selectedProfessional ? `${selectedProfessional.workHours}h` : '0h'} mensais
+                  </span>
+                </div>
               </div>
 
               <div className="flex flex-col">
                 <span className="text-muted-foreground text-sm">Banco de Horas</span>
-                <span
-                  className={`text-2xl font-bold ${calculateOvertimeBalance() >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}
-                >
-                  {formatMinutes(calculateOvertimeBalance())}
-                </span>
-                <span className="text-muted-foreground text-xs">
-                  {calculateOvertimeBalance() >= 0 ? 'Saldo positivo' : 'Saldo negativo'}
-                </span>
+                <div className="flex items-baseline gap-2">
+                  <span
+                    className={`text-2xl font-bold ${calculateOvertimeBalance() >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}
+                  >
+                    {formatMinutes(calculateOvertimeBalance())}
+                  </span>
+                  <span className="text-muted-foreground text-xs">
+                    {calculateOvertimeBalance() >= 0 ? 'Saldo positivo' : 'Saldo negativo'}
+                  </span>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -770,7 +864,8 @@ const SchedulePage: FC = () => {
             </CardHeader>
 
             <CardContent>
-              <div className="overflow-x-auto">
+              {/* Versão desktop - tabela horizontal */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full border-collapse">
                   <thead>
                     <tr className="bg-muted/50 dark:bg-gray-800">
@@ -837,11 +932,19 @@ const SchedulePage: FC = () => {
                           <td className="p-2">
                             <Select
                               value={dayType}
-                              onValueChange={(value) => updateDayType(day, value as DayType)}
+                              onValueChange={(value) => {
+                                // Garantir que é um valor válido antes de prosseguir
+                                if (['normal', 'falta', 'folga', 'ferias', 'atestado', 'dsr'].includes(value)) {
+                                  console.log('Selecionando tipo:', value)
+                                  updateDayType(day, value as DayType)
+                                }
+                              }}
                               disabled={!isCurrentMonth}
                             >
-                              <SelectTrigger className="w-[100px] dark:border-gray-600 dark:bg-gray-800">
-                                <SelectValue placeholder="Tipo" />
+                              <SelectTrigger className="w-[110px] dark:border-gray-600 dark:bg-gray-800">
+                                <SelectValue placeholder="Tipo">
+                                  {formatDayType(dayType)}
+                                </SelectValue>
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="normal">Normal</SelectItem>
@@ -860,14 +963,115 @@ const SchedulePage: FC = () => {
                       <td colSpan={4} className="p-2 text-right">
                         Total da Semana:
                       </td>
-                      <td colSpan={3} className="p-2">
-                        <span className="font-bold">
-                          {formatWorkedTime(calculateWeeklyHours(weekStart))}
-                        </span>
+                      <td colSpan={2} className="p-2">
+                        {formatWorkedTime(calculateWeeklyHours(weekStart))}
                       </td>
                     </tr>
                   </tbody>
                 </table>
+              </div>
+              
+              {/* Versão mobile - cards verticais */}
+              <div className="md:hidden space-y-4">
+                {getDaysOfWeek(weekStart).map((day) => {
+                  const dateString = format(day, 'yyyy-MM-dd')
+                  const record = timeRecords.find(
+                    (r) => r.date === dateString && r.professionalId === selectedProfessionalId,
+                  )
+                  const dayType = getDayType(day, timeRecords)
+                  const holiday = isHoliday(day)
+                  const isCurrentMonth = isSameMonth(day, currentDate)
+                  const dailyBalance = getDailyBalance(day, record, dayType, holiday)
+
+                  return (
+                    <div 
+                      key={day.toString()} 
+                      className={`p-3 rounded-lg border ${!isCurrentMonth ? 'opacity-70' : ''} 
+                      ${isToday(day) ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/30 dark:border-blue-800' : ''} 
+                      ${holiday ? 'bg-amber-50 border-amber-200 dark:bg-amber-900/30 dark:border-amber-800' : ''} 
+                      ${isWeekend(day) ? 'bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700' : 'dark:bg-gray-900 dark:border-gray-800'}`}
+                    >
+                      {/* Cabeçalho do card com dia e tipo */}
+                      <div className="flex justify-between items-center mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className="text-xl font-bold">{format(day, 'dd')}</div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400 capitalize">
+                            {format(day, 'EEEE', { locale: ptBR })}
+                          </div>
+                          {holiday && (
+                            <span className="text-xs font-medium text-amber-600 dark:text-amber-400 ml-1">
+                              {holiday.name}
+                            </span>
+                          )}
+                        </div>
+                        
+                        <Select
+                          value={dayType}
+                          onValueChange={(value) => {
+                            if (['normal', 'falta', 'folga', 'ferias', 'atestado', 'dsr'].includes(value)) {
+                              updateDayType(day, value as DayType)
+                            }
+                          }}
+                          disabled={!isCurrentMonth}
+                        >
+                          <SelectTrigger className="w-[100px] h-8 text-sm dark:border-gray-600 dark:bg-gray-800">
+                            <SelectValue placeholder="Tipo">
+                              {formatDayType(dayType)}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="normal">Normal</SelectItem>
+                            <SelectItem value="falta">Falta</SelectItem>
+                            <SelectItem value="folga">Folga</SelectItem>
+                            <SelectItem value="ferias">Férias</SelectItem>
+                            <SelectItem value="atestado">Atestado</SelectItem>
+                            <SelectItem value="dsr">DSR</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      {/* Corpo do card com os horários */}
+                      {dayType === 'normal' && (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Entrada</div>
+                            <Input
+                              type="time"
+                              className="h-8 text-sm dark:border-gray-600 dark:bg-gray-800"
+                              value={record?.checkIn ?? defaultCheckIn}
+                              onChange={(e) => updateTime(day, true, e.target.value)}
+                              disabled={!isCurrentMonth}
+                            />
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Saída</div>
+                            <Input
+                              type="time"
+                              className="h-8 text-sm dark:border-gray-600 dark:bg-gray-800"
+                              value={record?.checkOut ?? defaultCheckOut}
+                              onChange={(e) => updateTime(day, false, e.target.value)}
+                              disabled={!isCurrentMonth}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Rodapé do card com saldo do dia */}
+                      <div className="mt-3 flex justify-between items-center">
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Saldo do dia</div>
+                        <div className={`text-sm font-medium ${dailyBalance.color}`}>
+                          {dailyBalance.display}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+                
+                {/* Total da semana na versão mobile */}
+                <div className="mt-4 p-3 rounded-lg bg-muted/30 dark:bg-gray-800 flex justify-between items-center">
+                  <div className="font-medium">Total da Semana:</div>
+                  <div className="font-bold">{formatWorkedTime(calculateWeeklyHours(weekStart))}</div>
+                </div>
               </div>
             </CardContent>
           </Card>
