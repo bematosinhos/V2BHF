@@ -41,9 +41,49 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Info, Loader2 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
-// Validações personalizadas
-const cpfRegex = /^\d{3}\.\d{3}\.\d{3}-\d{2}$|^\d{11}$/
-const phoneRegex = /^\(\d{2}\)\s\d{5}-\d{4}$|^\(\d{2}\)\s\d{4}-\d{4}$|^\d{10,11}$/
+// Função para limpar o CPF (remover caracteres especiais)
+const cleanCPF = (cpf: string) => cpf.replace(/[^\d]/g, '')
+
+// Função para limpar o telefone (remover caracteres especiais)
+const cleanPhone = (phone: string) => phone.replace(/[^\d]/g, '')
+
+// Helper para criar array de anos para o seletor
+const generateYearOptions = (startYear: number, endYear: number) => {
+  const years = []
+  for (let year = startYear; year <= endYear; year++) {
+    years.push(year.toString())
+  }
+  return years
+}
+
+// Helper para criar array de meses
+const monthOptions = [
+  { value: '01', label: 'Janeiro' },
+  { value: '02', label: 'Fevereiro' },
+  { value: '03', label: 'Março' },
+  { value: '04', label: 'Abril' },
+  { value: '05', label: 'Maio' },
+  { value: '06', label: 'Junho' },
+  { value: '07', label: 'Julho' },
+  { value: '08', label: 'Agosto' },
+  { value: '09', label: 'Setembro' },
+  { value: '10', label: 'Outubro' },
+  { value: '11', label: 'Novembro' },
+  { value: '12', label: 'Dezembro' },
+]
+
+// Helper para criar array de dias
+const generateDayOptions = () => {
+  const days = []
+  for (let day = 1; day <= 31; day++) {
+    const value = day.toString().padStart(2, '0')
+    days.push({ value, label: value })
+  }
+  return days
+}
+
+const dayOptions = generateDayOptions()
+const yearOptions = generateYearOptions(1920, new Date().getFullYear())
 
 // Lista de cidades pré-definidas
 const CITIES = [
@@ -75,7 +115,8 @@ const professionalFormSchema = z.object({
   cpf: z
     .string()
     .min(1, { message: 'CPF é obrigatório' })
-    .regex(cpfRegex, { message: 'CPF inválido. Use o formato 000.000.000-00' }),
+    .transform(cleanCPF)
+    .refine((cpf) => cpf.length === 11, { message: 'CPF deve ter 11 dígitos' }),
   birthDate: z.string().min(1, { message: 'Data de nascimento é obrigatória' }),
   startDate: z.string().min(1, { message: 'Data de início é obrigatória' }),
   workHours: z.string().min(1, { message: 'Carga horária é obrigatória' }),
@@ -85,13 +126,17 @@ const professionalFormSchema = z.object({
   phone: z
     .string()
     .min(1, { message: 'Telefone é obrigatório' })
-    .regex(phoneRegex, { message: 'Telefone inválido. Use o formato (00) 00000-0000' }),
+    .transform(cleanPhone)
+    .refine((phone) => phone.length >= 10 && phone.length <= 11, { 
+      message: 'Telefone deve ter 10 ou 11 dígitos' 
+    }),
   email: z.string().email({ message: 'Email inválido' }).min(1, { message: 'Email é obrigatório' }),
   status: z.enum(['active', 'inactive', 'vacation']).default('active'),
 })
 
 type ProfessionalFormValues = z.infer<typeof professionalFormSchema>
 
+// Valores padrão para novo profissional
 const defaultValues: Partial<ProfessionalFormValues> = {
   name: '',
   role: '',
@@ -214,10 +259,17 @@ const RegisterPage: FC = () => {
         // Adicionar novo profissional
         await addProfessional(professionalData)
         toast.success('Profissional cadastrado com sucesso!')
+        
+        // Resetar o formulário para os valores padrão
         form.reset(defaultValues)
+        
+        // Se o usuário desejar cadastrar mais profissionais, ele permanecerá na página
+        // Definir setIsSubmitting aqui para garantir que o botão volte ao estado normal
+        setIsSubmitting(false)
+        return // Retornamos para evitar o redirecionamento automático
       }
 
-      // Redirecionar para a lista de profissionais
+      // Redirecionar para a lista de profissionais (apenas para edição)
       void navigate('/professionals')
     } catch (error) {
       console.error('Erro ao salvar profissional:', error)
@@ -363,7 +415,15 @@ const RegisterPage: FC = () => {
                 onSubmit={(e) => {
                   e.preventDefault();
                   if (checkFormValidity()) {
-                    void form.handleSubmit(onSubmit)(e);
+                    // Garantir que sempre começamos com isSubmitting false
+                    if (isSubmitting) {
+                      setIsSubmitting(false);
+                    }
+                    
+                    // Executa após um pequeno delay para garantir que o estado foi atualizado
+                    setTimeout(() => {
+                      void form.handleSubmit(onSubmit)(e);
+                    }, 0);
                   }
                 }}
                 className="space-y-6"
@@ -430,7 +490,7 @@ const RegisterPage: FC = () => {
                             <Input placeholder="000.000.000-00" {...field} />
                           </FormControl>
                           <FormDescription className="text-xs">
-                            Formato: 000.000.000-00
+                            Formato: 000.000.000-00 (caracteres especiais são removidos automaticamente)
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -440,17 +500,114 @@ const RegisterPage: FC = () => {
                     <FormField
                       control={form.control}
                       name="birthDate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="after:text-red-500 after:content-['*']">
-                            Data de Nascimento
-                          </FormLabel>
-                          <FormControl>
-                            <Input type="date" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                      render={({ field }) => {
+                        // Extrair partes da data (se existir)
+                        let dayValue = '', monthValue = '', yearValue = '';
+                        if (field.value) {
+                          try {
+                            const [y, m, d] = field.value.split('-');
+                            dayValue = d;
+                            monthValue = m;
+                            yearValue = y;
+                          } catch (e) {
+                            console.error('Erro ao parsear data:', e);
+                          }
+                        }
+                        
+                        const handleDayChange = (value: string) => {
+                          const newDay = value;
+                          const newMonth = monthValue || '01';
+                          const newYear = yearValue || new Date().getFullYear().toString();
+                          field.onChange(`${newYear}-${newMonth}-${newDay}`);
+                        };
+                        
+                        const handleMonthChange = (value: string) => {
+                          const newDay = dayValue || '01';
+                          const newMonth = value;
+                          const newYear = yearValue || new Date().getFullYear().toString();
+                          field.onChange(`${newYear}-${newMonth}-${newDay}`);
+                        };
+                        
+                        const handleYearChange = (value: string) => {
+                          const newDay = dayValue || '01';
+                          const newMonth = monthValue || '01';
+                          const newYear = value;
+                          field.onChange(`${newYear}-${newMonth}-${newDay}`);
+                        };
+                        
+                        return (
+                          <FormItem className="space-y-2">
+                            <FormLabel className="after:text-red-500 after:content-['*']">
+                              Data de Nascimento
+                            </FormLabel>
+                            <div className="flex flex-row space-x-2">
+                              <div className="w-20">
+                                <Select 
+                                  onValueChange={handleDayChange}
+                                  value={dayValue}
+                                  defaultValue={dayValue}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Dia" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {dayOptions.map((option) => (
+                                      <SelectItem key={option.value} value={option.value}>
+                                        {option.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              
+                              <div className="w-40">
+                                <Select
+                                  onValueChange={handleMonthChange}
+                                  value={monthValue}
+                                  defaultValue={monthValue}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Mês" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {monthOptions.map((option) => (
+                                      <SelectItem key={option.value} value={option.value}>
+                                        {option.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              
+                              <div className="w-28">
+                                <Select
+                                  onValueChange={handleYearChange}
+                                  value={yearValue}
+                                  defaultValue={yearValue}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Ano" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent className="max-h-60 overflow-y-auto">
+                                    {yearOptions.map((year) => (
+                                      <SelectItem key={year} value={year}>
+                                        {year}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                            <FormMessage />
+                          </FormItem>
+                        );
+                      }}
                     />
                   </div>
                 </div>
@@ -463,17 +620,114 @@ const RegisterPage: FC = () => {
                     <FormField
                       control={form.control}
                       name="startDate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="after:text-red-500 after:content-['*']">
-                            Data de Início
-                          </FormLabel>
-                          <FormControl>
-                            <Input type="date" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                      render={({ field }) => {
+                        // Extrair partes da data (se existir)
+                        let dayValue = '', monthValue = '', yearValue = '';
+                        if (field.value) {
+                          try {
+                            const [y, m, d] = field.value.split('-');
+                            dayValue = d;
+                            monthValue = m;
+                            yearValue = y;
+                          } catch (e) {
+                            console.error('Erro ao parsear data:', e);
+                          }
+                        }
+                        
+                        const handleDayChange = (value: string) => {
+                          const newDay = value;
+                          const newMonth = monthValue || '01';
+                          const newYear = yearValue || new Date().getFullYear().toString();
+                          field.onChange(`${newYear}-${newMonth}-${newDay}`);
+                        };
+                        
+                        const handleMonthChange = (value: string) => {
+                          const newDay = dayValue || '01';
+                          const newMonth = value;
+                          const newYear = yearValue || new Date().getFullYear().toString();
+                          field.onChange(`${newYear}-${newMonth}-${newDay}`);
+                        };
+                        
+                        const handleYearChange = (value: string) => {
+                          const newDay = dayValue || '01';
+                          const newMonth = monthValue || '01';
+                          const newYear = value;
+                          field.onChange(`${newYear}-${newMonth}-${newDay}`);
+                        };
+                        
+                        return (
+                          <FormItem className="space-y-2">
+                            <FormLabel className="after:text-red-500 after:content-['*']">
+                              Data de Início
+                            </FormLabel>
+                            <div className="flex flex-row space-x-2">
+                              <div className="w-20">
+                                <Select 
+                                  onValueChange={handleDayChange}
+                                  value={dayValue}
+                                  defaultValue={dayValue}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Dia" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {dayOptions.map((option) => (
+                                      <SelectItem key={option.value} value={option.value}>
+                                        {option.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              
+                              <div className="w-40">
+                                <Select
+                                  onValueChange={handleMonthChange}
+                                  value={monthValue}
+                                  defaultValue={monthValue}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Mês" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {monthOptions.map((option) => (
+                                      <SelectItem key={option.value} value={option.value}>
+                                        {option.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              
+                              <div className="w-28">
+                                <Select
+                                  onValueChange={handleYearChange}
+                                  value={yearValue}
+                                  defaultValue={yearValue}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Ano" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent className="max-h-60 overflow-y-auto">
+                                    {yearOptions.map((year) => (
+                                      <SelectItem key={year} value={year}>
+                                        {year}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                            <FormMessage />
+                          </FormItem>
+                        );
+                      }}
                     />
 
                     <FormField
@@ -625,7 +879,7 @@ const RegisterPage: FC = () => {
                             <Input placeholder="(00) 00000-0000" {...field} />
                           </FormControl>
                           <FormDescription className="text-xs">
-                            Formato: (00) 00000-0000
+                            Formato: (00) 00000-0000 (caracteres especiais são removidos automaticamente)
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
