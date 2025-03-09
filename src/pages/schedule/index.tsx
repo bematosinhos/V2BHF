@@ -634,7 +634,76 @@ const SchedulePage: FC = () => {
     };
   }, [hasUnsavedChanges]);
 
-  // Modificar a função saveScheduleToSupabase para remover a verificação da tabela
+  // Melhorar a função loadScheduleFromSupabase para preservar alterações pendentes
+  const loadScheduleFromSupabase = async () => {
+    try {
+      // Não ativar isSaving durante o carregamento normal
+      // setIsSaving(true);
+      
+      const startOfWeek = startOfISOWeek(currentDate);
+      const endOfWeek = endOfISOWeek(currentDate);
+      
+      console.log('Carregando dados da semana:', { 
+        startOfWeek: startOfWeek.toISOString(), 
+        endOfWeek: endOfWeek.toISOString() 
+      });
+      
+      const { data, error } = await supabase
+        .from('schedules')
+        .select('*')
+        .gte('date', startOfWeek.toISOString())
+        .lte('date', endOfWeek.toISOString());
+        
+      if (error) {
+        console.error('Erro ao carregar dados:', error);
+        throw error;
+      }
+      
+      console.log(`Carregados ${data?.length || 0} registros do Supabase`);
+      
+      if (data && data.length > 0) {
+        // Converter dados do banco para o estado da aplicação
+        const newSelectedTypes: Record<string, DayType> = {};
+        const newPendingChanges: Record<string, any> = {};
+        
+        data.forEach(item => {
+          const dateKey = format(new Date(item.date), 'yyyy-MM-dd');
+          const cellKey = `${item.professional_id}_${dateKey}`;
+          
+          // Armazenar tipo de dia
+          newSelectedTypes[cellKey] = item.day_type as DayType;
+          
+          // Armazenar horários com as chaves corretas - SEMPRE atualize com os valores do banco
+          newPendingChanges[`start_${cellKey}`] = item.start_time;
+          newPendingChanges[`end_${cellKey}`] = item.end_time;
+        });
+        
+        // Atualizar estados - SEMPRE substituir com os dados do banco
+        setSelectedTypes(prev => ({ ...prev, ...newSelectedTypes }));
+        setPendingChanges(prev => ({ ...prev, ...newPendingChanges }));
+      }
+    } catch (error) {
+      console.error('Erro ao carregar escala:', error);
+      toast.error('Erro ao carregar dados da escala.');
+    } finally {
+      // Não desativar isSaving aqui, já que não o ativamos
+      // setIsSaving(false);
+    }
+  };
+
+  // Chamar esta função quando a semana mudar
+  useEffect(() => {
+    loadScheduleFromSupabase();
+  }, [currentDate]);
+  
+  // Adicionar novo efeito para carregar dados quando o profissional for alterado
+  useEffect(() => {
+    if (selectedProfessionalId) {
+      loadScheduleFromSupabase();
+    }
+  }, [selectedProfessionalId]);
+
+  // Modificar a função saveScheduleToSupabase para atualizar a interface após salvar
   const saveScheduleToSupabase = async () => {
     try {
       setIsSaving(true);
@@ -754,6 +823,9 @@ const SchedulePage: FC = () => {
         }
         
         console.log(`Inseridos/atualizados ${data?.length || 0} registros com sucesso`);
+        
+        // NOVO: Recarregar os dados após salvar para atualizar a interface
+        await loadScheduleFromSupabase();
       }
       
       toast.success('Escala salva com sucesso no Supabase!');
@@ -771,81 +843,6 @@ const SchedulePage: FC = () => {
   const handleSaveWeekSchedule = () => {
     saveScheduleToSupabase();
   };
-
-  // Melhorar a função loadScheduleFromSupabase para preservar alterações pendentes
-  const loadScheduleFromSupabase = async () => {
-    try {
-      // Não ativar isSaving durante o carregamento normal
-      // setIsSaving(true);
-      
-      const startOfWeek = startOfISOWeek(currentDate);
-      const endOfWeek = endOfISOWeek(currentDate);
-      
-      console.log('Carregando dados da semana:', { 
-        startOfWeek: startOfWeek.toISOString(), 
-        endOfWeek: endOfWeek.toISOString() 
-      });
-      
-      const { data, error } = await supabase
-        .from('schedules')
-        .select('*')
-        .gte('date', startOfWeek.toISOString())
-        .lte('date', endOfWeek.toISOString());
-        
-      if (error) {
-        console.error('Erro ao carregar dados:', error);
-        throw error;
-      }
-      
-      console.log(`Carregados ${data?.length || 0} registros do Supabase`);
-      
-      if (data && data.length > 0) {
-        // Converter dados do banco para o estado da aplicação
-        const newSelectedTypes: Record<string, DayType> = {};
-        const newPendingChanges: Record<string, any> = {};
-        
-        data.forEach(item => {
-          const dateKey = format(new Date(item.date), 'yyyy-MM-dd');
-          const cellKey = `${item.professional_id}_${dateKey}`;
-          
-          // Armazenar tipo de dia
-          newSelectedTypes[cellKey] = item.day_type as DayType;
-          
-          // Armazenar horários com as chaves corretas
-          newPendingChanges[`start_${cellKey}`] = item.start_time;
-          newPendingChanges[`end_${cellKey}`] = item.end_time;
-        });
-        
-        // Atualizar estados
-        setSelectedTypes(prev => ({ ...prev, ...newSelectedTypes }));
-        
-        // Importante: Apenas adicionar novos valores, não sobrescrever alterações pendentes
-        setPendingChanges(prev => {
-          const result = { ...prev };
-          
-          // Apenas adicionar chaves que não existem ainda
-          Object.keys(newPendingChanges).forEach(key => {
-            if (!result[key]) {
-              result[key] = newPendingChanges[key];
-            }
-          });
-          
-          return result;
-        });
-      }
-    } catch (error) {
-      console.error('Erro ao carregar escala:', error);
-      toast.error('Erro ao carregar dados da escala.');
-    } finally {
-      // Não desativar isSaving aqui, já que não o ativamos
-      // setIsSaving(false);
-    }
-  };
-
-  // Chamar esta função quando a semana mudar
-  useEffect(() => {
-    loadScheduleFromSupabase();
-  }, [currentDate]);
 
   return (
     <DashboardLayout>
