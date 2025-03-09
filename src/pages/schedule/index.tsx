@@ -33,10 +33,13 @@ import {
   differenceInMinutes,
   isToday,
   isPast,
+  startOfISOWeek,
+  endOfISOWeek,
 } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useAppStore, TimeRecord } from '@/store'
 import { toast } from 'sonner'
+import { supabase } from '@/lib/supabase'
 
 // Lista de feriados nacionais para 2023/2024 (exemplo)
 const HOLIDAYS = [
@@ -87,6 +90,17 @@ function useDebounce<T>(value: T, delay: number): T {
   }, [value, delay]);
 
   return debouncedValue;
+}
+
+// Adicionar definição explícita do tipo Schedule
+interface Schedule {
+  professionalId: string;
+  date: string;
+  dayType: DayType;
+  startTime: string;
+  endTime: string;
+  balance: number;
+  status?: string;
 }
 
 const SchedulePage: FC = () => {
@@ -728,6 +742,188 @@ const SchedulePage: FC = () => {
     }
   };
 
+  // Modificar a função saveScheduleToSupabase para depurar e garantir funcionamento
+  const saveScheduleToSupabase = async () => {
+    try {
+      setIsSaving(true);
+      // Obter a semana atual para busca
+      const startOfWeek = startOfISOWeek(currentDate);
+      const endOfWeek = endOfISOWeek(currentDate);
+      
+      console.log('Iniciando salvamento da escala:', { 
+        startOfWeek: startOfWeek.toISOString(), 
+        endOfWeek: endOfWeek.toISOString()
+      });
+
+      // Verificar se a tabela existe
+      const { data: tableExists, error: tableCheckError } = await supabase
+        .from('schedules')
+        .select('count(*)', { count: 'exact', head: true });
+
+      if (tableCheckError) {
+        console.error('Erro ao verificar tabela de escalas:', tableCheckError);
+        throw new Error(`A tabela 'schedules' não existe ou você não tem permissão para acessá-la: ${tableCheckError.message}`);
+      }
+      
+      // Remover entradas existentes para a semana
+      const { error: deleteError } = await supabase
+        .from('schedules')
+        .delete()
+        .gte('date', startOfWeek.toISOString())
+        .lte('date', endOfWeek.toISOString());
+        
+      if (deleteError) {
+        console.error('Erro ao excluir registros existentes:', deleteError);
+        throw deleteError;
+      }
+      
+      // Preparar dados para inserção
+      // Construir os dados manualmente a partir do estado atual
+      // Usar currentDate para obter a semana atual
+      const weekStart = startOfISOWeek(currentDate);
+      const weekDays = getDaysOfWeek(weekStart);
+      
+      const scheduleData: Array<{
+        professional_id: string;
+        date: string;
+        day_type: DayType;
+        start_time: string;
+        end_time: string;
+        balance: number;
+        created_at: string;
+      }> = [];
+      
+      // Para cada profissional ativo
+      professionals.filter(p => p.status === 'active').forEach(professional => {
+        // Para cada dia da semana
+        weekDays.forEach(day => {
+          const dateKey = format(day, 'yyyy-MM-dd');
+          const cellKey = `${professional.id}_${dateKey}`;
+          
+          // Obter dados do estado pendingChanges ou usar valores padrão
+          const dayType = selectedTypes[cellKey] || getDayType(day, []);
+          
+          // Não salvar dias de folga
+          if (dayType === 'folga') return;
+          
+          const startTimeKey = `start_${cellKey}`;
+          const endTimeKey = `end_${cellKey}`;
+          
+          const startTime = pendingChanges[startTimeKey] || '08:00';
+          const endTime = pendingChanges[endTimeKey] || '17:00';
+          
+          // Calcular saldo
+          const balance = calculateDayHoursBalance(day, startTime, endTime);
+          
+          scheduleData.push({
+            professional_id: professional.id,
+            date: dateKey,
+            day_type: dayType,
+            start_time: startTime,
+            end_time: endTime,
+            balance: balance,
+            created_at: new Date().toISOString(),
+          });
+        });
+      });
+      
+      console.log(`Preparados ${scheduleData.length} registros para inserção`);
+      
+      if (scheduleData.length > 0) {
+        const { data, error: insertError } = await supabase
+          .from('schedules')
+          .insert(scheduleData)
+          .select();
+          
+        if (insertError) {
+          console.error('Erro ao inserir dados:', insertError);
+          throw insertError;
+        }
+        
+        console.log(`Inseridos ${data?.length || 0} registros com sucesso`);
+      }
+      
+      // Limpar mudanças pendentes
+      setPendingChanges({});
+      toast.success('Escala salva com sucesso no Supabase!');
+      setLastSavedTime(new Date());
+      
+      // Recarregar os dados
+      loadScheduleFromSupabase();
+    } catch (error) {
+      console.error('Erro ao salvar escala:', error);
+      toast.error(`Erro ao salvar escala: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Modificar o botão de salvamento para chamar esta função
+  const handleSaveWeekSchedule = () => {
+    saveScheduleToSupabase();
+  };
+
+  // Melhorar a função loadScheduleFromSupabase
+  const loadScheduleFromSupabase = async () => {
+    try {
+      setIsSaving(true);
+      const startOfWeek = startOfISOWeek(currentDate);
+      const endOfWeek = endOfISOWeek(currentDate);
+      
+      console.log('Carregando dados da semana:', { 
+        startOfWeek: startOfWeek.toISOString(), 
+        endOfWeek: endOfWeek.toISOString() 
+      });
+      
+      const { data, error } = await supabase
+        .from('schedules')
+        .select('*')
+        .gte('date', startOfWeek.toISOString())
+        .lte('date', endOfWeek.toISOString());
+        
+      if (error) {
+        console.error('Erro ao carregar dados:', error);
+        throw error;
+      }
+      
+      console.log(`Carregados ${data?.length || 0} registros do Supabase`);
+      
+      if (data && data.length > 0) {
+        // Converter dados do banco para o estado da aplicação
+        const newSelectedTypes: Record<string, DayType> = {};
+        const newPendingChanges: Record<string, any> = {};
+        
+        data.forEach(item => {
+          const dateKey = format(new Date(item.date), 'yyyy-MM-dd');
+          const cellKey = `${item.professional_id}_${dateKey}`;
+          
+          // Armazenar tipo de dia
+          newSelectedTypes[cellKey] = item.day_type as DayType;
+          
+          // Armazenar horários
+          newPendingChanges[`start_${cellKey}`] = item.start_time;
+          newPendingChanges[`end_${cellKey}`] = item.end_time;
+        });
+        
+        // Atualizar estados
+        setSelectedTypes(prev => ({ ...prev, ...newSelectedTypes }));
+        setPendingChanges(prev => ({ ...prev, ...newPendingChanges }));
+        
+        toast.success('Dados de escala carregados com sucesso!');
+      }
+    } catch (error) {
+      console.error('Erro ao carregar escala:', error);
+      toast.error('Erro ao carregar dados da escala.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Chamar esta função quando a semana mudar
+  useEffect(() => {
+    loadScheduleFromSupabase();
+  }, [currentDate]);
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -1206,8 +1402,8 @@ const SchedulePage: FC = () => {
                 {/* Botão de salvar escala da semana */}
                 {hasUnsavedChanges && (
                   <Button 
-                    onClick={() => saveChanges()} 
-                    disabled={isSaving || Object.keys(pendingChanges).length === 0}
+                    onClick={handleSaveWeekSchedule}
+                    disabled={isSaving || !hasUnsavedChanges}
                     className="flex items-center gap-2"
                   >
                     {isSaving ? (

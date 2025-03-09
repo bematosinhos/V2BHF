@@ -42,6 +42,8 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { formatDateRange } from '@/lib/calendar-utils'
+import { supabase } from '@/lib/supabase'
+import { Textarea } from '@/components/ui/textarea'
 
 const ProfessionalDetailPage: FC = () => {
   const { id } = useParams<{ id: string }>()
@@ -51,6 +53,20 @@ const ProfessionalDetailPage: FC = () => {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: new Date(new Date().getFullYear(), new Date().getMonth(), 1), // Primeiro dia do mês atual
     to: new Date(), // Hoje
+  })
+
+  // Adicionar estado para controlar o salvamento
+  const [isSaving, setIsSaving] = useState(false)
+  const [professionalDetails, setProfessionalDetails] = useState<{
+    notes: string;
+    balanceHours: number;
+    vacationDays: number;
+    lastVacationDate: string | null;
+  }>({
+    notes: '',
+    balanceHours: 0,
+    vacationDays: 0,
+    lastVacationDate: null,
   })
 
   // Encontrar o profissional pelo ID
@@ -224,6 +240,142 @@ const ProfessionalDetailPage: FC = () => {
   // Wrapper para navegação
   const handleNavigate = (path: string) => {
     void navigate(path)
+  }
+
+  // Função para carregar os detalhes do profissional do Supabase
+  const loadProfessionalDetails = async () => {
+    if (!id) return
+    
+    try {
+      const { data, error } = await supabase
+        .from('professional_details')
+        .select('*')
+        .eq('professional_id', id)
+        .single()
+        
+      if (error && error.code !== 'PGRST116') {
+        console.error('Erro ao carregar detalhes do profissional:', error)
+        return
+      }
+      
+      if (data) {
+        setProfessionalDetails({
+          notes: data.notes || '',
+          balanceHours: data.balance_hours || 0,
+          vacationDays: data.vacation_days || 0,
+          lastVacationDate: data.last_vacation_date || null,
+        })
+      }
+    } catch (error) {
+      console.error('Erro ao carregar detalhes do profissional:', error)
+    }
+  }
+  
+  // Função para salvar os detalhes do profissional no Supabase
+  const saveProfessionalDetails = async () => {
+    if (!id) return
+    
+    try {
+      setIsSaving(true)
+      
+      // Verificar se já existe um registro para este profissional
+      const { data, error: fetchError } = await supabase
+        .from('professional_details')
+        .select('*')
+        .eq('professional_id', id)
+        .single()
+        
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        throw fetchError
+      }
+      
+      // Preparar dados para salvar
+      const detailsData = {
+        professional_id: id,
+        notes: professionalDetails.notes,
+        balance_hours: professionalDetails.balanceHours,
+        vacation_days: professionalDetails.vacationDays,
+        last_vacation_date: professionalDetails.lastVacationDate,
+        updated_at: new Date().toISOString(),
+      }
+      
+      if (data) {
+        // Atualizar registro existente
+        const { error: updateError } = await supabase
+          .from('professional_details')
+          .update(detailsData)
+          .eq('professional_id', id)
+          
+        if (updateError) throw updateError
+      } else {
+        // Criar novo registro
+        const { error: insertError } = await supabase
+          .from('professional_details')
+          .insert({
+            ...detailsData,
+            created_at: new Date().toISOString(),
+          })
+          
+        if (insertError) throw insertError
+      }
+      
+      toast.success('Detalhes do profissional salvos com sucesso!')
+    } catch (error) {
+      console.error('Erro ao salvar detalhes do profissional:', error)
+      toast.error('Erro ao salvar detalhes do profissional. Tente novamente.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+  
+  // Carregar detalhes do profissional ao montar o componente
+  useEffect(() => {
+    if (id) {
+      loadProfessionalDetails()
+    }
+  }, [id])
+
+  // Adicionar botão para salvar detalhes do profissional
+  const renderSaveButton = () => {
+    return (
+      <Button 
+        onClick={saveProfessionalDetails}
+        disabled={isSaving}
+        className="mt-4"
+      >
+        {isSaving ? 'Salvando...' : 'Salvar Detalhes do Profissional'}
+      </Button>
+    )
+  }
+
+  // Adicionar manipulador para atualizar as notas
+  const handleNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setProfessionalDetails(prev => ({
+      ...prev,
+      notes: e.target.value
+    }))
+  }
+
+  // Adicionar o campo de notas antes do botão de salvar
+  const renderNotesField = () => {
+    return (
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle className="text-base">Anotações</CardTitle>
+          <CardDescription>
+            Adicione notas ou observações sobre este profissional
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Textarea
+            placeholder="Adicione suas anotações aqui..."
+            className="min-h-[150px]"
+            value={professionalDetails.notes}
+            onChange={handleNotesChange}
+          />
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
@@ -528,6 +680,9 @@ const ProfessionalDetailPage: FC = () => {
             </CardFooter>
           </CardContent>
         </Card>
+
+        {renderNotesField()}
+        {renderSaveButton()}
       </div>
     </DashboardLayout>
   )
